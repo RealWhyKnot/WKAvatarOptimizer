@@ -1,0 +1,93 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <RootNamespace>WKVRCOptimizer</RootNamespace>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>TRACE;UNITY_5_3_OR_NEWER;UNITY_2022_3_OR_NEWER;UNITY_EDITOR;UNITY_EDITOR_WIN</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    
+    <!-- Core Unity Dependencies (Modules) -->
+    <Reference Include="UnityEngine.CoreModule">
+        <HintPath>..\Dependencies\UnityEngine.CoreModule.dll</HintPath>
+        <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEditor.CoreModule">
+        <HintPath>..\Dependencies\UnityEditor.CoreModule.dll</HintPath>
+        <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.AnimationModule">
+        <HintPath>..\Dependencies\UnityEngine.AnimationModule.dll</HintPath>
+        <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.IMGUIModule">
+        <HintPath>..\Dependencies\UnityEngine.IMGUIModule.dll</HintPath>
+        <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.ParticleSystemModule">
+        <HintPath>..\Dependencies\UnityEngine.ParticleSystemModule.dll</HintPath>
+        <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.PhysicsModule">
+        <HintPath>..\Dependencies\UnityEngine.PhysicsModule.dll</HintPath>
+        <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.TextRenderingModule">
+        <HintPath>..\Dependencies\UnityEngine.TextRenderingModule.dll</HintPath>
+        <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.ImageConversionModule">
+        <HintPath>..\Dependencies\UnityEngine.ImageConversionModule.dll</HintPath>
+        <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.ClothModule">
+        <HintPath>..\Dependencies\UnityEngine.ClothModule.dll</HintPath>
+        <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.AssetBundleModule">
+        <HintPath>..\Dependencies\UnityEngine.AssetBundleModule.dll</HintPath>
+        <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.AudioModule">
+        <HintPath>..\Dependencies\UnityEngine.AudioModule.dll</HintPath>
+        <Private>False</Private>
+    </Reference>
+    
+    <!-- VRChat SDK Dependencies -->
+    <!-- Note: References must point to the actual filenames found in Dependencies/ -->
+    <Reference Include="VRC.SDKBase">
+      <HintPath>..\Dependencies\VRCSDKBase.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="VRC.SDKBase.Editor">
+      <HintPath>..\Dependencies\VRCSDKBase-Editor.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="VRC.SDK3A">
+      <HintPath>..\Dependencies\VRCSDK3A.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="VRC.SDK3A.Editor">
+      <HintPath>..\Dependencies\VRCSDK3A-Editor.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="VRC.Dynamics">
+        <HintPath>..\Dependencies\VRC.Dynamics.dll</HintPath>
+        <Private>False</Private>
+    </Reference>
+    <Reference Include="VRC.SDK3.Dynamics.PhysBone">
+        <HintPath>..\Dependencies\VRC.SDK3.Dynamics.PhysBone.dll</HintPath>
+        <Private>False</Private>
+    </Reference>
+    <Reference Include="VRC.SDK3.Dynamics.Contact">
+        <HintPath>..\Dependencies\VRC.SDK3.Dynamics.Contact.dll</HintPath>
+        <Private>False</Private>
+    </Reference>
+    <Reference Include="VRCCore-Editor">
+        <HintPath>..\Dependencies\VRCCore-Editor.dll</HintPath>
+        <Private>False</Private>
+    </Reference>
+  </ItemGroup>
+</Project>
