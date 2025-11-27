@@ -26,11 +26,9 @@ namespace WKAvatarOptimizer.Data
             }
             return result;
         }
-#if UNITY_EDITOR
         public MeshTopology GetTopology()
         {
             return renderer.GetSharedMesh()?.GetTopology(Math.Min(index, renderer.GetSharedMesh().subMeshCount - 1)) ?? MeshTopology.Triangles;
         }
-#endif
     }
 }

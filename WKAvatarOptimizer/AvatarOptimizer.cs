@@ -43,8 +43,6 @@ public partial class AvatarOptimizer : MonoBehaviour, VRC.SDKBase.IEditorOnly
     public bool DebugShowGameObjectsWithToggle = true;
     public bool DebugShowUnmovingBones = false;
 
-#if UNITY_EDITOR
-
     public OptimizationContext context;
     private CacheManager cacheManager;
     public MeshOptimizer meshOptimizer;
@@ -503,6 +501,4 @@ public partial class AvatarOptimizer : MonoBehaviour, VRC.SDKBase.IEditorOnly
          HashSet<Renderer> penetrators = componentOptimizer.FindAllPenetrators();
          return penetrators;
     }
-
-#endif
 }
