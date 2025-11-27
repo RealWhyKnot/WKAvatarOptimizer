@@ -1,7 +1,6 @@
-using UnityEngine;
 using System.Collections.Generic;
 using System.Linq;
-using WKVRCOptimizer.Data;
+using WKAvatarOptimizer.Data;
 
 public partial class AvatarOptimizer
 {

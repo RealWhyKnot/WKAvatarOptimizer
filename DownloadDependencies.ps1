@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Downloads and extracts dependencies for WKVRCOptimizer.
+    Downloads and extracts dependencies for WKAvatarOptimizer.
 #>
 
 $ErrorActionPreference = "Stop"

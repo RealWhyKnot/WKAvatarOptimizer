@@ -1,18 +1,16 @@
-#if UNITY_EDITOR
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
-using WKVRCOptimizer.Core;
 
-namespace WKVRCOptimizer.Core
+namespace WKAvatarOptimizer.Core
 {
     using AnimationPath = System.ValueTuple<string, string, System.Type>;
 
     public class OptimizationContext
     {
 
-        public string packageRootPath = "Assets/WKVRCOptimizer";
-        public string trashBinPath = "Assets/WKVRCOptimizer/TrashBin/";
+        public string packageRootPath = "Assets/WKAvatarOptimizer";
+        public string trashBinPath = "Assets/WKAvatarOptimizer/TrashBin/";
         public string binaryAssetBundlePath = null;
         public string materialAssetBundlePath = null;
         
@@ -169,4 +167,3 @@ namespace WKVRCOptimizer.Core
         }
     }
 }
-#endif

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
-namespace WKVRCOptimizer.Core.Util
+namespace WKAvatarOptimizer.Core.Util
 {
     static class Profiler
     {

@@ -1,22 +1,18 @@
-#if UNITY_EDITOR
 using UnityEngine;
 using UnityEditor;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
-using WKVRCOptimizer.Data;
-using WKVRCOptimizer.Extensions;
+using WKAvatarOptimizer.Data;
+using WKAvatarOptimizer.Extensions;
 using VRC.SDK3.Avatars.Components;
 using VRC.SDK3.Dynamics.PhysBone.Components;
 using System;
-using VRC.SDK3.Dynamics.Contact.Components;
-using VRC.SDKBase;
-using WKVRCOptimizer.Core.Util;
+using WKAvatarOptimizer.Core.Util;
 
-using AnimationPath = System.ValueTuple<string, string, System.Type>;
 using UnityEditor.Animations;
 
-namespace WKVRCOptimizer.Core
+namespace WKAvatarOptimizer.Core
 {
     public class AnimationRewriter
     {
@@ -540,4 +536,3 @@ namespace WKVRCOptimizer.Core
         }
     }
 }
-#endif

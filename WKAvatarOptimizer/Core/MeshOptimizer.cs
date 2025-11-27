@@ -1,18 +1,17 @@
-#if UNITY_EDITOR
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.Rendering;
-using WKVRCOptimizer.Data;
-using WKVRCOptimizer.Extensions;
-using WKVRCOptimizer.Core.Util;
+using WKAvatarOptimizer.Data;
+using WKAvatarOptimizer.Extensions;
+using WKAvatarOptimizer.Core.Util;
 using UnityEditor;
 using System;
 using Math = System.Math;
 using Object = UnityEngine.Object;
 using VRC.SDK3.Avatars.Components;
 
-namespace WKVRCOptimizer.Core
+namespace WKAvatarOptimizer.Core
 {
     public class MeshOptimizer
     {
@@ -1669,4 +1668,3 @@ namespace WKVRCOptimizer.Core
         }
     }
 }
-#endif

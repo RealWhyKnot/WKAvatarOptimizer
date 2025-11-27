@@ -1,13 +1,9 @@
-#if UNITY_EDITOR
 using System;
-using UnityEngine;
 using UnityEditor;
-using WKVRCOptimizer.Core;
-using WKVRCOptimizer.Core.Util;
-using WKVRCOptimizer.Extensions;
+using UnityEngine;
 using VRC.SDKBase.Editor.BuildPipeline;
 
-namespace WKVRCOptimizer.Editor
+namespace WKAvatarOptimizer.Editor
 {
     [InitializeOnLoad]
     public class AvatarBuildHook : IVRCSDKPreprocessAvatarCallback
@@ -81,4 +77,3 @@ namespace WKVRCOptimizer.Editor
         }
     }
 }
-#endif

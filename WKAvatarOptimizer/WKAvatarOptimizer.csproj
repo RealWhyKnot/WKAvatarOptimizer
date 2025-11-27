@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFramework>netstandard2.1</TargetFramework>
     <LangVersion>9.0</LangVersion>
-    <RootNamespace>WKVRCOptimizer</RootNamespace>
+    <RootNamespace>WKAvatarOptimizer</RootNamespace>
     <OutputPath>bin\Debug\</OutputPath>
     <DefineConstants>TRACE;UNITY_5_3_OR_NEWER;UNITY_2022_3_OR_NEWER;UNITY_EDITOR;UNITY_EDITOR_WIN</DefineConstants>
   </PropertyGroup>

@@ -1,20 +1,16 @@
-#if UNITY_EDITOR
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using WKVRCOptimizer.Extensions;
+using WKAvatarOptimizer.Extensions;
 using UnityEditor;
 using UnityEditor.Animations;
 using UnityEngine;
 using VRC.SDK3.Avatars.Components;
 using VRC.SDKBase;
-using WKVRCOptimizer.Editor;
+using WKAvatarOptimizer.Editor;
 using BlendableLayer = VRC.SDKBase.VRC_AnimatorLayerControl.BlendableLayer;
 
-namespace WKVRCOptimizer.Core
+namespace WKAvatarOptimizer.Core
 {
-    // based on https://github.com/VRLabs/Avatars-3.0-Manager/blob/main/Editor/AnimatorCloner.cs
-
     public class AnimatorOptimizer
     {
         private string assetPath;
@@ -920,4 +916,3 @@ namespace WKVRCOptimizer.Core
         }
     }
 }
-#endif

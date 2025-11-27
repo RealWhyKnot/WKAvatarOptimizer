@@ -1,35 +1,18 @@
 using UnityEngine;
 using System.Collections.Generic;
 using System.Linq;
-using VRC.SDK3.Dynamics.Contact.Components;
-using VRC.SDK3.Dynamics.PhysBone.Components;
-using System.Text.RegularExpressions;
-using Array = System.Array;
-
-#if UNITY_EDITOR
 using System.Threading;
-using System.Threading.Tasks;
 using System.Globalization;
-using UnityEngine.Rendering;
-using UnityEngine.Animations;
 using UnityEditor;
 using UnityEditor.Animations;
-using WKVRCOptimizer.Core.Util;
-using WKVRCOptimizer.Extensions;
-using WKVRCOptimizer.Data;
-using WKVRCOptimizer.Core;
+using WKAvatarOptimizer.Core.Util;
+using WKAvatarOptimizer.Data;
+using WKAvatarOptimizer.Core;
 using VRC.Dynamics;
 using VRC.SDK3.Avatars.Components;
 
-using Math = System.Math;
-using Type = System.Type;
-using Path = System.IO.Path;
-using AnimationPath = System.ValueTuple<string, string, System.Type>;
-using BlendableLayer = VRC.SDKBase.VRC_AnimatorLayerControl.BlendableLayer;
-#endif
-
 [HelpURL("https://github.com/whyknot/WKVRCOptimizer/blob/main/README.md")]
-[AddComponentMenu("WhyKnot's VRC Optimizer")]
+[AddComponentMenu("WK Avatar Optimizer")]
 public partial class AvatarOptimizer : MonoBehaviour, VRC.SDKBase.IEditorOnly
 {
     public Settings settings = new Settings();

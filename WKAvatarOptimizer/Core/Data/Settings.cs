@@ -1,6 +1,4 @@
-using UnityEngine;
-
-namespace WKVRCOptimizer.Data
+namespace WKAvatarOptimizer.Data
 {
     [System.Serializable]
     public class Settings

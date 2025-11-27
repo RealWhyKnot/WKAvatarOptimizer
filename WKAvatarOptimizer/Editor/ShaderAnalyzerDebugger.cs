@@ -1,13 +1,9 @@
-﻿#if UNITY_EDITOR
-using System.Collections;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using System.IO;
 using UnityEngine;
 using UnityEditor;
-using WKVRCOptimizer.Core;
-using WKVRCOptimizer.Core.Util;
-using WKVRCOptimizer.Extensions;
+using WKAvatarOptimizer.Core;
 using System.Diagnostics;
 
 public class ShaderAnalyzerDebugger : EditorWindow
@@ -368,4 +364,3 @@ public class ShaderAnalyzerDebugger : EditorWindow
         EditorGUILayout.EndScrollView();
     }
 }
-#endif

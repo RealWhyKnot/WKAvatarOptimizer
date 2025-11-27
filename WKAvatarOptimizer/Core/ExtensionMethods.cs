@@ -1,12 +1,10 @@
-#if UNITY_EDITOR
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using Unity.Collections;
 using UnityEditor.Animations;
 using UnityEngine;
 
-namespace WKVRCOptimizer.Extensions
+namespace WKAvatarOptimizer.Extensions
 {
     public static class RendererExtensions
     {
@@ -322,4 +320,3 @@ namespace WKVRCOptimizer.Extensions
         }
     }
 }
-#endif

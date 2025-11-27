@@ -1,18 +1,15 @@
-#if UNITY_EDITOR
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
-using WKVRCOptimizer.Data;
-using WKVRCOptimizer.Extensions;
-using WKVRCOptimizer.Core.Util; // For Profiler
-using Object = UnityEngine.Object; // To avoid ambiguity with System.Object
+using WKAvatarOptimizer.Data;
+using WKAvatarOptimizer.Extensions;
+using WKAvatarOptimizer.Core.Util;
 
-namespace WKVRCOptimizer.Core
+namespace WKAvatarOptimizer.Core
 {
     public class MaterialOptimizer
     {
@@ -1052,4 +1049,3 @@ namespace WKVRCOptimizer.Core
         }
     }
 }
-#endif

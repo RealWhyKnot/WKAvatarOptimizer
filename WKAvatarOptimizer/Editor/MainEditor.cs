@@ -1,23 +1,20 @@
-#if UNITY_EDITOR
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEditor;
-using UnityEditor.Animations;
-using WKVRCOptimizer.Core;
-using WKVRCOptimizer.Core.Util;
-using WKVRCOptimizer.Extensions;
+using WKAvatarOptimizer.Core;
+using WKAvatarOptimizer.Core.Util;
+using WKAvatarOptimizer.Extensions;
 using VRC.SDK3.Avatars.Components;
 using VRC.Dynamics;
 using VRC.SDKBase.Validation.Performance;
 
 using Type = System.Type;
-using MaterialSlot = WKVRCOptimizer.Data.MaterialSlot;
-using Settings = WKVRCOptimizer.Data.Settings;
+using MaterialSlot = WKAvatarOptimizer.Data.MaterialSlot;
 
-namespace WKVRCOptimizer.Editor
+namespace WKAvatarOptimizer.Editor
 {
     [CustomEditor(typeof(AvatarOptimizer))]
     public class AvatarOptimizerEditor : UnityEditor.Editor
@@ -54,7 +51,7 @@ namespace WKVRCOptimizer.Editor
 
         using (new EditorGUI.IndentLevelScope())
         {
-                    EditorGUILayout.LabelField($"<size=20>WhyKnot's VRC Optimizer</size>", new GUIStyle(EditorStyles.label) { richText = true, alignment = TextAnchor.LowerCenter });
+                    EditorGUILayout.LabelField($"<size=20>WK Avatar Optimizer</size>", new GUIStyle(EditorStyles.label) { richText = true, alignment = TextAnchor.LowerCenter });
                     settingsRect = GUILayoutUtility.GetLastRect();
                     
                     string buildDate = Assembly.GetExecutingAssembly()
@@ -1172,6 +1169,7 @@ namespace WKVRCOptimizer.Editor
             if (tooltipCache == null)
             {
                 tooltipCache = new Dictionary<string, List<string>>();
+                /*
                 var path = AssetDatabase.GetAssetPath(MonoScript.FromScriptableObject(this));
                 path = path.Substring(0, path.LastIndexOf('/'));
                 using (var reader = new System.IO.StreamReader(path + "/../README.md"))
@@ -1202,6 +1200,7 @@ namespace WKVRCOptimizer.Editor
                     while (pair.Value.Count > 0 && string.IsNullOrWhiteSpace(pair.Value[pair.Value.Count - 1]))
                         pair.Value.RemoveAt(pair.Value.Count - 1);
                 }
+                */
             }
             return tooltipCache;
         }
@@ -1477,5 +1476,4 @@ namespace WKVRCOptimizer.Editor
         }
     }
 }
-#endif
 }

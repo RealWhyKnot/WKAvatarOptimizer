@@ -1,14 +1,9 @@
-#if UNITY_EDITOR
 using UnityEngine;
-using System.Collections.Generic;
 using System.Linq;
 using UnityEditor;
-using WKVRCOptimizer.Core;
-using WKVRCOptimizer.Core.Util;
-using WKVRCOptimizer.Extensions;
-using WKVRCOptimizer.Data;
+using WKAvatarOptimizer.Data;
 
-namespace WKVRCOptimizer.Editor
+namespace WKAvatarOptimizer.Editor
 {
     public class AvatarOptimizerSettings : EditorWindow
     {
@@ -40,7 +35,7 @@ namespace WKVRCOptimizer.Editor
             private set => EditorPrefs.SetInt(PrefsPrefix + "MotionTimeApproximationSampleCount", value);
         }
         
-        [MenuItem("Tools/whyknot/Avatar Optimizer Settings")]
+        [MenuItem("Tools/WhyKnot/WK Avatar Optimizer Settings")]
         static void Init()
         {
             GetWindow(typeof(AvatarOptimizerSettings));
@@ -198,4 +193,3 @@ namespace WKVRCOptimizer.Editor
         }
     }
 }
-#endif

@@ -1,16 +1,8 @@
-# WhyKnot's VRC Optimizer (WKVRCOptimizer)
-
-**WhyKnot's VRC Optimizer** is a modernized, refactored version of the VRChat Avatar Optimizer tool, designed to help creators optimize their VRChat avatars for better performance and easier upload workflows.
-
-This project targets **.NET Standard 2.1** and is compatible with **Unity 2022.3** and **VRChat SDK 3.10.0+**.
-
-## 🔗 Origins & Credits
+# WhyKnot's Avatar Optimizer (WKAvatarOptimizer)
 
 This project is a refactor and continuation based on the excellent work done by **d4rkc0d3r** on the original **d4rkAvatarOptimizer**.
 
 *   **Original Repository:** [https://github.com/d4rkc0d3r/d4rkAvatarOptimizer](https://github.com/d4rkc0d3r/d4rkAvatarOptimizer)
-
-We gratefully acknowledge d4rkc0d3r's contribution to the VRChat community. This project aims to maintain the core optimization logic while modernizing the codebase structure, resolving namespace conflicts with newer SDKs, and improving maintainability.
 
 ## ✨ Features
 
@@ -28,9 +20,5 @@ We gratefully acknowledge d4rkc0d3r's contribution to the VRChat community. This
     ```
 2.  **Build:** Open the solution in your IDE (VS Code, Visual Studio, Rider) or build via CLI:
     ```bash
-    dotnet build WKVRCOptimizer/WKVRCOptimizer.csproj
+    dotnet build WKAvatarOptimizer/WKAvatarOptimizer.csproj
     ```
-
-## 📝 License
-
-Please refer to the license file included in the repository (inheriting terms from the original d4rkAvatarOptimizer where applicable).

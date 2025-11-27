@@ -1,10 +1,9 @@
-#if UNITY_EDITOR
-using UnityEditor;
 using UnityEngine;
+using UnityEditor;
 using System.IO;
-using WKVRCOptimizer.Core.Util;
+using WKAvatarOptimizer.Core.Util;
 
-namespace WKVRCOptimizer.Core
+namespace WKAvatarOptimizer.Core
 {
     public static class AssetManager
     {
@@ -86,4 +85,3 @@ namespace WKVRCOptimizer.Core
         }
     }
 }
-#endif

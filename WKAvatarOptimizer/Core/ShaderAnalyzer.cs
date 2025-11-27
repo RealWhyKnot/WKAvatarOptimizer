@@ -1,21 +1,18 @@
-﻿#if UNITY_EDITOR
-using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
-using UnityEditor;
+﻿using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.RegularExpressions;
-using System.Text;
+using UnityEditor;
+using UnityEngine;
+using WKAvatarOptimizer.Extensions;
+using WKAvatarOptimizer.Core.Util;
+using System.Threading.Tasks;
 using System.Threading;
 using System.Globalization;
-using System.Linq;
-using System.Threading.Tasks;
-using WKVRCOptimizer.Core.Util;
-using WKVRCOptimizer.Extensions;
+using System.Text;
 using System.Security.Cryptography;
-using System.Configuration;
 
-namespace WKVRCOptimizer.Core
+namespace WKAvatarOptimizer.Core
 {
     public class ParsedShader
     {
@@ -3615,4 +3612,3 @@ namespace WKVRCOptimizer.Core
         }
     }
 }
-#endif

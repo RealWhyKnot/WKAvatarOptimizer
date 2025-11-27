@@ -2,7 +2,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.5.2.0
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WKVRCOptimizer", "WKVRCOptimizer\WKVRCOptimizer.csproj", "{6EC671AC-7699-E279-3F68-5C41778C7B7B}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WKAvatarOptimizer", "WKAvatarOptimizer\WKAvatarOptimizer.csproj", "{6EC671AC-7699-E279-3F68-5C41778C7B7B}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

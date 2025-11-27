@@ -10,11 +10,12 @@ obj/
 Dependencies/
 Reference/
 Temp/
+# Validates build is up to spec
+GEMINI.md
 Temp_Ref/
 *_Data/
+DownloadReference.ps1
 
 # Unity generated
 *.meta
 *.unitypackage
-
-GEMINI.md

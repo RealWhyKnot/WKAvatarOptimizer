@@ -1,8 +1,7 @@
 ﻿using UnityEngine;
 
-namespace WKVRCOptimizer.Core
+namespace WKAvatarOptimizer.Core
 {
-    [PreferBinarySerialization]
     public class BinarySerializationSO : ScriptableObject
     {
     }

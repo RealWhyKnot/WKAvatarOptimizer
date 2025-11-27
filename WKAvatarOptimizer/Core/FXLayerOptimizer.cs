@@ -1,4 +1,3 @@
-#if UNITY_EDITOR
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -7,14 +6,13 @@ using UnityEditor;
 using UnityEditor.Animations;
 using UnityEngine;
 using VRC.SDK3.Avatars.Components;
-using VRC.SDKBase;
-using WKVRCOptimizer.Data;
-using WKVRCOptimizer.Extensions;
-using WKVRCOptimizer.Core.Util;
+using WKAvatarOptimizer.Data;
+using WKAvatarOptimizer.Extensions;
+using WKAvatarOptimizer.Core.Util;
 
 using BlendableLayer = VRC.SDKBase.VRC_AnimatorLayerControl.BlendableLayer;
 
-namespace WKVRCOptimizer.Core
+namespace WKAvatarOptimizer.Core
 {
     public class FXLayerOptimizer
     {
@@ -851,4 +849,3 @@ namespace WKVRCOptimizer.Core
         }
     }
 }
-#endif

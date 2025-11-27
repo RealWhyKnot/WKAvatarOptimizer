@@ -1,13 +1,8 @@
-#if UNITY_EDITOR
-using System.Collections.Generic;
-using System.Linq;
-using UnityEditor;
 using UnityEngine;
-using WKVRCOptimizer.Data;
-using WKVRCOptimizer.Extensions;
+using System.Collections.Generic;
+using WKAvatarOptimizer.Data;
 
-
-namespace WKVRCOptimizer.Core
+namespace WKAvatarOptimizer.Core
 {
     public class CacheManager
     {
@@ -40,9 +35,7 @@ namespace WKVRCOptimizer.Core
             cache_withNaNimation = null;
             cache_RendererHaveSameAnimationCurves = null;
             cache_DummyAnimationClipOfLength = null;
-            // Reset context
             context.Clear();
         }
     }
 }
-#endif

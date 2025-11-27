@@ -1,20 +1,18 @@
-#if UNITY_EDITOR
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using UnityEditor;
-using WKVRCOptimizer.Data;
-using WKVRCOptimizer.Extensions;
+using WKAvatarOptimizer.Data;
+using WKAvatarOptimizer.Extensions;
 using VRC.Dynamics;
 using VRC.SDK3.Dynamics.Contact.Components;
-using VRC.SDK3.Dynamics.PhysBone.Components;
 using VRC.SDK3.Avatars.Components;
 using UnityEditor.Animations;
 using Object = UnityEngine.Object;
-using WKVRCOptimizer.Core.Util;
+using WKAvatarOptimizer.Core.Util;
 
-namespace WKVRCOptimizer.Core
+namespace WKAvatarOptimizer.Core
 {
     public class ComponentOptimizer
     {
@@ -808,4 +806,3 @@ namespace WKVRCOptimizer.Core
         }
     }
 }
-#endif

@@ -1,9 +1,8 @@
-using UnityEngine;
 using System;
-using UnityEngine.Rendering;
-using WKVRCOptimizer.Extensions;
+using UnityEngine;
+using WKAvatarOptimizer.Extensions;
 
-namespace WKVRCOptimizer.Data
+namespace WKAvatarOptimizer.Data
 {
     public struct MaterialSlot
     {
