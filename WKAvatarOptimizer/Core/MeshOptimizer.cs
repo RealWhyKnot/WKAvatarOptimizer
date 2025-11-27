@@ -1379,7 +1379,7 @@ namespace WKAvatarOptimizer.Core
                 for (int i = 0; i < mesh.blendShapeCount; i++)
                 {
                     var name = mesh.GetBlendShapeName(i);
-                    if (settings.MMDCompatibility && OptimizationContext.MMDBlendShapes.Contains(name))
+                    if (OptimizationContext.MMDBlendShapes.Contains(name))
                         continue;
                     if (mesh.GetBlendShapeFrameCount(i) == 1)
                     {
@@ -1625,14 +1625,16 @@ namespace WKAvatarOptimizer.Core
             {
                 var mesh = skinnedMeshRenderer.sharedMesh;
                 if (mesh == null)
+                {
                     continue;
+                }
                 var blendShapeIDsToBake = new List<int>();
                 context.blendShapesToBake[skinnedMeshRenderer] = blendShapeIDsToBake;
                 string path = skinnedMeshRenderer.transform.GetPathToRoot(root.transform) + "/blendShape.";
                 for (int i = 0; i < mesh.blendShapeCount; i++)
                 {
                     var name = mesh.GetBlendShapeName(i);
-                    if (settings.MMDCompatibility && OptimizationContext.MMDBlendShapes.Contains(name))
+                    if (OptimizationContext.MMDBlendShapes.Contains(name))
                     {
                         context.usedBlendShapes.Add(path + name);
                         continue;

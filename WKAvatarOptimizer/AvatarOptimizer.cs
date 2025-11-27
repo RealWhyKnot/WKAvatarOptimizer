@@ -12,7 +12,7 @@ using VRC.Dynamics;
 using VRC.SDK3.Avatars.Components;
 
 [HelpURL("https://github.com/whyknot/WKVRCOptimizer/blob/main/README.md")]
-[AddComponentMenu("WK Avatar Optimizer")]
+[AddComponentMenu("WhyKnot's Avatar Optimizer")]
 public partial class AvatarOptimizer : MonoBehaviour, VRC.SDKBase.IEditorOnly
 {
     public Settings settings;
@@ -68,9 +68,7 @@ public partial class AvatarOptimizer : MonoBehaviour, VRC.SDKBase.IEditorOnly
         settings.CombineApproximateMotionTimeAnimations = false;
         settings.DisablePhysBonesWhenUnused = true;
         settings.MergeSameRatioBlendShapes = true;
-        settings.MMDCompatibility = true;
         settings.DeleteUnusedComponents = true;
-        settings.UseRingFingerAsFootCollider = false;
         settings.ProfileTimeUsed = ProfileTimeUsed;
 
         // Smart Logic
@@ -208,9 +206,6 @@ public partial class AvatarOptimizer : MonoBehaviour, VRC.SDKBase.IEditorOnly
             Profiler.StartNextSection("FixAllAnimationPaths()");
             DisplayProgressBar("Fixing animation paths", 0.95f);
             FixAllAnimationPaths();
-            Profiler.StartNextSection("MoveRingFingerColliderToFeet()");
-            DisplayProgressBar("Done", 1.0f);
-            componentOptimizer.MoveRingFingerColliderToFeet();
             Profiler.StartNextSection("DestroyImmediate(this)");
             DestroyImmediate(this);
             Profiler.EndSection();
@@ -399,7 +394,7 @@ public partial class AvatarOptimizer : MonoBehaviour, VRC.SDKBase.IEditorOnly
         return layers;
     }
 
-    public void ProcessBlendShapes(OptimizationContext context)
+    public void ProcessBlendShapes()
     {
         EnsureInitializedForEditor();
         meshOptimizer.ProcessBlendShapes();

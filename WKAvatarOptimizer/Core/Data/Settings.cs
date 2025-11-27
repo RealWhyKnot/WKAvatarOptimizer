@@ -19,10 +19,8 @@ namespace WKAvatarOptimizer.Data
         public bool CombineApproximateMotionTimeAnimations = false;
         public bool DisablePhysBonesWhenUnused = true;
         public bool MergeSameRatioBlendShapes = true;
-        public bool MMDCompatibility = true;
         public bool DeleteUnusedComponents = true;
         public int DeleteUnusedGameObjects = 0;
-        public bool UseRingFingerAsFootCollider = false;
         public bool ProfileTimeUsed = false;
     }
 }

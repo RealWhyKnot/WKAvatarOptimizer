@@ -9,9 +9,8 @@ namespace WKAvatarOptimizer.Core
     {
         public static string GetTrashBinPath(OptimizationContext context)
         {
-            var path = AssetDatabase.GUIDToAssetPath(AssetDatabase.FindAssets("WKVRCOptimizer")[0]);
-            context.packageRootPath = path.Substring(0, path.LastIndexOf('/'));
-            context.packageRootPath = context.packageRootPath.Substring(0, context.packageRootPath.LastIndexOf('/'));
+            var path = AssetDatabase.GUIDToAssetPath(AssetDatabase.FindAssets("AvatarOptimizer t:MonoScript")[0]);
+            context.packageRootPath = Path.GetDirectoryName(path).Replace('\\', '/');
             var trashBinRoot = context.packageRootPath;
             var packageInfo = UnityEditor.PackageManager.PackageInfo.FindForAssetPath(path);
             if (packageInfo?.source != UnityEditor.PackageManager.PackageSource.Embedded)
@@ -32,9 +31,8 @@ namespace WKAvatarOptimizer.Core
 
         public static void ClearTrashBin(OptimizationContext context)
         {
-            var path = AssetDatabase.GUIDToAssetPath(AssetDatabase.FindAssets("WKVRCOptimizer")[0]);
-            context.packageRootPath = path.Substring(0, path.LastIndexOf('/'));
-            context.packageRootPath = context.packageRootPath.Substring(0, context.packageRootPath.LastIndexOf('/'));
+            var path = AssetDatabase.GUIDToAssetPath(AssetDatabase.FindAssets("AvatarOptimizer t:MonoScript")[0]);
+            context.packageRootPath = Path.GetDirectoryName(path).Replace('\\', '/');
             var trashBinRoot = context.packageRootPath;
             var packageInfo = UnityEditor.PackageManager.PackageInfo.FindForAssetPath(path);
             if (packageInfo?.source != UnityEditor.PackageManager.PackageSource.Embedded)

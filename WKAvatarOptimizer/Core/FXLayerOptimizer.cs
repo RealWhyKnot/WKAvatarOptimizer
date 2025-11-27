@@ -137,7 +137,7 @@ namespace WKAvatarOptimizer.Core
                     errorMessages[i].Add("useless");
                     continue;
                 }
-                if (i <= 2 && settings.MMDCompatibility)
+                if (i <= 2)
                 {
                     errorMessages[i].Add("MMD compatibility requires the first 3 layers to be kept as is");
                     continue;
@@ -567,7 +567,7 @@ namespace WKAvatarOptimizer.Core
             int lastNonUselessLayer = fxLayerLayers.Length;
             for (int i = fxLayerLayers.Length - 1; i >= 0; i--)
             {
-                if (i <= 2 && settings.MMDCompatibility) {
+                if (i <= 2) {
                     break;
                 }
                 var layer = fxLayerLayers[i];

@@ -47,7 +47,7 @@ namespace WKAvatarOptimizer.Editor
 
             using (new EditorGUI.IndentLevelScope())
             {
-                EditorGUILayout.LabelField("<size=20>WK Avatar Optimizer</size>", new GUIStyle(EditorStyles.label) { richText = true, alignment = TextAnchor.LowerCenter });
+                EditorGUILayout.LabelField("<size=20>WhyKnot's Avatar Optimizer</size>", new GUIStyle(EditorStyles.label) { richText = true, alignment = TextAnchor.LowerCenter });
                 
                 string buildDate = Assembly.GetExecutingAssembly()
                                           .GetCustomAttributes(typeof(AssemblyMetadataAttribute), false)
@@ -62,6 +62,7 @@ namespace WKAvatarOptimizer.Editor
                 {
                     EditorGUILayout.LabelField("vdev", EditorStyles.centeredGreyMiniLabel);
                 }
+                EditorGUILayout.Space();
             }
 
             if (Application.isPlaying)
@@ -70,51 +71,17 @@ namespace WKAvatarOptimizer.Editor
                 return;
             }
 
-            if (optimizer.ExcludeTransforms == null)
-                optimizer.ExcludeTransforms = new List<Transform>();
-            
-            if (Foldout("Exclusions (" + optimizer.ExcludeTransforms.Count + ")", ref optimizer.ShowExcludedTransforms))
-            {
-                using (new EditorGUI.IndentLevelScope())
-                {
-                    DynamicTransformList(optimizer, nameof(optimizer.ExcludeTransforms));
-                }
-            }
-
             Profiler.enabled = optimizer.ProfileTimeUsed;
             Profiler.Reset();
 
             Profiler.StartSection("Validate");
-            GUI.enabled = Validate();
+            bool validationResult = Validate();
             Profiler.EndSection();
 
-            if (GUILayout.Button("<size=18>Create Optimized Copy</size>", new GUIStyle(GUI.skin.button) { richText = true }))
-            {
-                Profiler.enabled = optimizer.ProfileTimeUsed;
-                Profiler.Reset();
-                Profiler.StartSection("Assign New Avatar ID");
-                AssignNewAvatarIDIfEmpty();
-                Profiler.StartNextSection("Instantiate(optimizer.gameObject)");
-                var copy = Instantiate(optimizer.gameObject);
-                Profiler.StartNextSection("Move Copy to Scene");
-                SceneManager.MoveGameObjectToScene(copy, optimizer.gameObject.scene);
-                Profiler.StartNextSection("Optimize Copy");
-                copy.name = optimizer.gameObject.name + "(BrokenCopy)";
-                copy.GetComponent<AvatarOptimizer>().Optimize();
-                copy.name = optimizer.gameObject.name + "(OptimizedCopy)";
-                Profiler.StartNextSection("Select Copy");
-                copy.SetActive(true);
-                optimizer.gameObject.SetActive(false);
-                Selection.objects = new Object[] { copy };
-                Profiler.EndSection();
-                Profiler.PrintTimeUsed();
-                Profiler.Reset();
-                return;
-            }
-
-            EditorGUILayout.Separator();
+            GUI.enabled = validationResult;
             GUI.enabled = true;
 
+            EditorGUILayout.HelpBox("Optimizations will happen on build / play mode", MessageType.Info);
             if (longestTimeUsed > AutoRefreshPreviewTimeout)
             {
                 EditorGUILayout.HelpBox("Preview auto refresh is disabled because it took " + longestTimeUsed + "ms which is longer than the threshold of " + AutoRefreshPreviewTimeout + "ms to refresh.\n" +
@@ -138,7 +105,7 @@ namespace WKAvatarOptimizer.Editor
                 if (r.sharedMesh == null)
                     return new string[0];
                 return Enumerable.Range(0, r.sharedMesh.blendShapeCount)
-                    .Select(i => optimizer.GetPathToRoot(r.transform) + "/blendShape." + r.sharedMesh.GetBlendShapeName(i));
+                    .Select(i => r.transform.GetPathToRoot(optimizer.transform) + "/blendShape." + r.sharedMesh.GetBlendShapeName(i));
             }));
             int optimizedSkinnedMeshCount = 0;
             int optimizedMeshCount = 0;
@@ -182,6 +149,19 @@ namespace WKAvatarOptimizer.Editor
             }
             PerfRankChangeLabel("Blend Shapes", totalBlendShapePaths.Count, KeptBlendShapePaths.Count, PerformanceCategory.BlendShapeCount);
             Profiler.EndSection();
+
+            EditorGUILayout.Separator();
+
+            if (optimizer.ExcludeTransforms == null)
+                optimizer.ExcludeTransforms = new List<Transform>();
+            
+            if (Foldout("Exclusions (" + optimizer.ExcludeTransforms.Count + ")", ref optimizer.ShowExcludedTransforms))
+            {
+                using (new EditorGUI.IndentLevelScope())
+                {
+                    DynamicTransformList(optimizer, nameof(optimizer.ExcludeTransforms));
+                }
+            }
 
             EditorGUILayout.Separator();
 
@@ -841,19 +821,22 @@ namespace WKAvatarOptimizer.Editor
             {
                 if (keptBlendShapePathsCache == null)
                 {
-                    optimizer.ProcessBlendShapes(optimizer.context);
+                    optimizer.ProcessBlendShapes(); // This populates optimizer.context.usedBlendShapes
+
                     var skinnedMeshes = optimizer.GetUsedComponentsInChildren<SkinnedMeshRenderer>();
                     keptBlendShapePathsCache = new HashSet<string>(skinnedMeshes.SelectMany(r => {
                         if (r.sharedMesh == null)
                             return new string[0];
                         return Enumerable.Range(0, r.sharedMesh.blendShapeCount)
-                            .Select(i => optimizer.GetPathToRoot(r.transform) + "/blendShape." + r.sharedMesh.GetBlendShapeName(i));
+                            .Select(i => r.transform.GetPathToRoot(optimizer.transform) + "/blendShape." + r.sharedMesh.GetBlendShapeName(i));
                     }));
+
                     foreach (var list in MergeableBlendShapes)
                     {
                         for (int i = 1; i < list.Count; i++)
                             keptBlendShapePathsCache.Remove(list[i].blendshape);
                     }
+
                     keptBlendShapePathsCache.IntersectWith(optimizer.GetUsedBlendShapePaths());
                 }
                 return keptBlendShapePathsCache;

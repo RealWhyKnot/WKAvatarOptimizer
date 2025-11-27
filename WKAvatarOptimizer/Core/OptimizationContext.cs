@@ -58,7 +58,7 @@ namespace WKAvatarOptimizer.Core
             Debug.Log($"[OptimizationContext] {message}");
         }
 
-        public static readonly HashSet<string> MMDBlendShapes = new HashSet<string>()
+        public static readonly HashSet<string> MMDBlendShapes = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase)
         {
             "まばたき", "Blink",
             "笑い", "Smile",

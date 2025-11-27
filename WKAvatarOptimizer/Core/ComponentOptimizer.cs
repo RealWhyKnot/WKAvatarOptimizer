@@ -686,48 +686,6 @@ namespace WKAvatarOptimizer.Core
             return cache_FindAllPenetrators = penetrators;
         }
 
-        public void MoveRingFingerColliderToFeet()
-        {
-            if (!settings.UseRingFingerAsFootCollider)
-                return;
-            var avDescriptor = gameObject.GetComponent<VRCAvatarDescriptor>();
-
-            var collider = avDescriptor.collider_footL;
-            collider.state = VRCAvatarDescriptor.ColliderConfig.State.Custom;
-            collider.height -= collider.radius * 2f;
-            var parent = new GameObject("leftFootColliderRoot");
-            parent.transform.parent = collider.transform;
-            parent.transform.localRotation = collider.rotation;
-            parent.transform.localPosition = collider.position + collider.rotation * (-(collider.height * 0.5f) * Vector3.up);
-            parent.transform.localScale = Vector3.one;
-            var leaf = new GameObject("leftFootColliderLeaf");
-            leaf.transform.parent = parent.transform;
-            leaf.transform.localPosition = new Vector3(0, collider.height, 0);
-            leaf.transform.localRotation = Quaternion.identity;
-            leaf.transform.localScale = Vector3.one;
-            collider.transform = leaf.transform;
-            avDescriptor.collider_fingerRingL = collider;
-
-            collider = avDescriptor.collider_footR;
-            collider.state = VRCAvatarDescriptor.ColliderConfig.State.Custom;
-            collider.height -= collider.radius * 2f;
-            parent = new GameObject("rightFootColliderRoot");
-            parent.transform.parent = collider.transform;
-            parent.transform.localRotation = collider.rotation;
-            parent.transform.localPosition = collider.position + collider.rotation * (-(collider.height * 0.5f) * Vector3.up);
-            parent.transform.localScale = Vector3.one;
-            leaf = new GameObject("rightFootColliderLeaf");
-            leaf.transform.parent = parent.transform;
-            leaf.transform.localPosition = new Vector3(0, collider.height, 0);
-            leaf.transform.localRotation = Quaternion.identity;
-            leaf.transform.localScale = Vector3.one;
-            collider.transform = leaf.transform;
-            avDescriptor.collider_fingerRingR = collider;
-
-            // disable collider foldout in the inspector because it resets the collider transform
-            EditorPrefs.SetBool("VRCSDK3_AvatarDescriptorEditor3_CollidersFoldout", false);
-        }
-
         public List<T> GetNonEditorOnlyComponentsInChildren<T>() where T : Component
         {
             var components = new List<T>();
