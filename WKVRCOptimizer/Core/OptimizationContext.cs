@@ -10,6 +10,7 @@ namespace WKVRCOptimizer.Core
 
     public class OptimizationContext
     {
+
         public string packageRootPath = "Assets/WKVRCOptimizer";
         public string trashBinPath = "Assets/WKVRCOptimizer/TrashBin/";
         public string binaryAssetBundlePath = null;
@@ -55,6 +56,10 @@ namespace WKVRCOptimizer.Core
         // Animation Values
         public Dictionary<EditorCurveBinding, float> constantAnimatedValuesToAdd = new Dictionary<EditorCurveBinding, float>();
         
+        private static void _Log(string message) {
+            Debug.Log($"[OptimizationContext] {message}");
+        }
+
         public static readonly HashSet<string> MMDBlendShapes = new HashSet<string>()
         {
             "まばたき", "Blink",
@@ -131,6 +136,7 @@ namespace WKVRCOptimizer.Core
 
         public void Clear()
         {
+            _Log("Clear() called. Resetting optimization context.");
             packageRootPath = "Assets/WKVRCOptimizer";
             // trashBinPath is re-calculated usually
             binaryAssetBundlePath = null;
@@ -159,6 +165,7 @@ namespace WKVRCOptimizer.Core
             movingParentMap.Clear();
             transformFromOldPath.Clear();
             constantAnimatedValuesToAdd.Clear();
+            _Log("Clear() finished. Optimization context reset.");
         }
     }
 }

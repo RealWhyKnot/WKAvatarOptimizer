@@ -54,10 +54,29 @@ namespace WKVRCOptimizer.Editor
 
         using (new EditorGUI.IndentLevelScope())
         {
-            EditorGUILayout.LabelField($"<size=20>WKVRCOptimizer</size>", new GUIStyle(EditorStyles.label) { richText = true, alignment = TextAnchor.LowerCenter });
-            settingsRect = GUILayoutUtility.GetLastRect();
-            EditorGUILayout.LabelField($"v{packageInfo?.version ?? "dev"}", EditorStyles.centeredGreyMiniLabel);
-        }
+                    EditorGUILayout.LabelField($"<size=20>WhyKnot's VRC Optimizer</size>", new GUIStyle(EditorStyles.label) { richText = true, alignment = TextAnchor.LowerCenter });
+                    settingsRect = GUILayoutUtility.GetLastRect();
+                    
+                    string buildDate = Assembly.GetExecutingAssembly()
+                                              .GetCustomAttributes(typeof(AssemblyMetadataAttribute), false)
+                                              .OfType<AssemblyMetadataAttribute>()
+                                              .FirstOrDefault(x => x.Key == "BuildDate")?.Value;
+            
+                                if (!string.IsNullOrEmpty(buildDate))
+            
+                                {
+            
+                                    EditorGUILayout.LabelField($"v{buildDate}", EditorStyles.centeredGreyMiniLabel);
+            
+                                }
+            
+                                else
+            
+                                {
+            
+                                    EditorGUILayout.LabelField($"vdev", EditorStyles.centeredGreyMiniLabel);
+            
+                                }        }
 
         settingsRect.width = 24;
         settingsRect.height = 24;

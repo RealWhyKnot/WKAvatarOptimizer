@@ -1,4 +1,4 @@
-﻿#if UNITY_EDITOR
+#if UNITY_EDITOR
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -12,35 +12,27 @@ namespace WKVRCOptimizer.Extensions
     {
         public static Mesh GetSharedMesh(this Renderer renderer)
         {
+            Mesh mesh = null;
             if (renderer is SkinnedMeshRenderer)
             {
-                return (renderer as SkinnedMeshRenderer).sharedMesh;
+                mesh = (renderer as SkinnedMeshRenderer).sharedMesh;
             }
             else if (renderer.TryGetComponent<MeshFilter>(out var filter))
             {
-                return filter.sharedMesh;
+                mesh = filter.sharedMesh;
             }
-            else
-            {
-                return null;
-            }
+            return mesh;
         }
 
         public static Transform GetRootBone(this Renderer renderer)
         {
-            if (renderer is SkinnedMeshRenderer skinnedMeshRenderer)
+            if (renderer is SkinnedMeshRenderer skinnedMeshRenderer && skinnedMeshRenderer.rootBone != null)
             {
-                var bone = skinnedMeshRenderer.rootBone;
-                if (bone != null)
-                {
-                    return bone;
-                }
+                return skinnedMeshRenderer.rootBone;
             }
             return renderer.transform;
         }
 
-        // using mesh.boneWeights = boneWeights; causes the mesh to always use 4 bone weights per vertex
-        // this method allows to also use 2 or 1 bone weights per vertex if none of the vertices need more
         public static void SetBoneWeights(this Mesh mesh, BoneWeight[] boneWeights)
         {
             var weightsPerVertex = new byte[boneWeights.Length];
@@ -70,10 +62,7 @@ namespace WKVRCOptimizer.Extensions
                     boneWeights1.Add(new BoneWeight1() { boneIndex = w.boneIndex3, weight = w.weight3 });
                 }
             }
-            var boneWeights1Array = boneWeights1.ToArray();
-            var nativeBoneWeights1Array = new NativeArray<BoneWeight1>(boneWeights1Array, Allocator.Temp);
-            var nativeWeightsPerVertex = new NativeArray<byte>(weightsPerVertex, Allocator.Temp);
-            mesh.SetBoneWeights(nativeWeightsPerVertex, nativeBoneWeights1Array);
+            mesh.SetBoneWeights(new NativeArray<byte>(weightsPerVertex, Allocator.Temp), new NativeArray<BoneWeight1>(boneWeights1.ToArray(), Allocator.Temp));
         }
     }
 
@@ -82,16 +71,13 @@ namespace WKVRCOptimizer.Extensions
         public static IEnumerable<Transform> GetAllDescendants(this Transform transform)
         {
             var stack = new Stack<Transform>();
-            foreach (Transform child in transform)
-            {
+            foreach (Transform child in transform) {
                 stack.Push(child);
             }
-            while (stack.Count > 0)
-            {
+            while (stack.Count > 0) {
                 var current = stack.Pop();
                 yield return current;
-                foreach (Transform child in current)
-                {
+                foreach (Transform child in current) {
                     stack.Push(child);
                 }
             }
@@ -99,15 +85,12 @@ namespace WKVRCOptimizer.Extensions
 
         public static bool IsDescendantOf(this Transform transform, Transform ancestor)
         {
-            if (transform == null || ancestor == null)
-            {
+            if (transform == null || ancestor == null) {
                 return false;
             }
             var current = transform;
-            while (current != null)
-            {
-                if (current == ancestor)
-                {
+            while (current != null) {
+                if (current == ancestor) {
                     return true;
                 }
                 current = current.parent;
@@ -118,14 +101,13 @@ namespace WKVRCOptimizer.Extensions
         public static Component[] GetNonNullComponents(this Transform transform)
         {
             var components = transform.GetComponents<Component>();
-            if (components.All(c => c != null))
-            {
+            if (components.All(c => c != null)) {
                 return components;
             }
+            
             var path = new List<string>();
             var current = transform;
-            while (current != null)
-            {
+            while (current != null) {
                 path.Add(current.name);
                 current = current.parent;
             }
@@ -137,18 +119,20 @@ namespace WKVRCOptimizer.Extensions
 
         public static Component[] GetNonNullComponents(this GameObject gameObject)
         {
-            return gameObject.transform.GetNonNullComponents();
+            var result = gameObject.transform.GetNonNullComponents();
+            return result;
         }
 
         public static string GetPathToRoot(this Transform t, Transform root)
         {
-            if (t == root)
+            if (t == root) {
                 return "";
+            }
             string path = t.name;
-            while ((t = t.parent) != root)
-            {
-                if (t == null)
+            while ((t = t.parent) != root) {
+                if (t == null) {
                     return null;
+                }
                 path = $"{t.name}/{path}";
             }
             return path;
@@ -156,25 +140,28 @@ namespace WKVRCOptimizer.Extensions
 
         public static string GetPathToRoot(this GameObject obj, Transform root)
         {
-            return obj.transform.GetPathToRoot(root);
+            var result = obj.transform.GetPathToRoot(root);
+            return result;
         }
 
         public static string GetPathToRoot(this Component component, Transform root)
         {
-            return component.transform.GetPathToRoot(root);
+            var result = component.transform.GetPathToRoot(root);
+            return result;
         }
 
         public static Transform GetTransformFromPath(this Transform root, string path)
         {
-            if (string.IsNullOrEmpty(path))
+            if (string.IsNullOrEmpty(path)) {
                 return root;
+            }
             string[] pathParts = path.Split('/');
             Transform t = root;
-            for (int i = 0; i < pathParts.Length; i++)
-            {
+            for (int i = 0; i < pathParts.Length; i++) {
                 t = t.Find(pathParts[i]);
-                if (t == null)
+                if (t == null) {
                     return null;
+                }
             }
             return t;
         }
@@ -185,18 +172,14 @@ namespace WKVRCOptimizer.Extensions
         public static IEnumerable<AnimatorState> EnumerateAllStates(this AnimatorController controller)
         {
             var queue = new Queue<AnimatorStateMachine>();
-            foreach (var layer in controller.layers)
-            {
+            foreach (var layer in controller.layers) {
                 queue.Enqueue(layer.stateMachine);
-                while (queue.Count > 0)
-                {
+                while (queue.Count > 0) {
                     var stateMachine = queue.Dequeue();
-                    foreach (var subStateMachine in stateMachine.stateMachines)
-                    {
+                    foreach (var subStateMachine in stateMachine.stateMachines) {
                         queue.Enqueue(subStateMachine.stateMachine);
                     }
-                    foreach (var state in stateMachine.states.Select(s => s.state))
-                    {
+                    foreach (var state in stateMachine.states.Select(s => s.state)) {
                         yield return state;
                     }
                 }
@@ -207,15 +190,12 @@ namespace WKVRCOptimizer.Extensions
         {
             var queue = new Queue<AnimatorStateMachine>();
             queue.Enqueue(stateMachine);
-            while (queue.Count > 0)
-            {
+            while (queue.Count > 0) {
                 var current = queue.Dequeue();
-                foreach (var subStateMachine in current.stateMachines)
-                {
+                foreach (var subStateMachine in current.stateMachines) {
                     queue.Enqueue(subStateMachine.stateMachine);
                 }
-                foreach (var state in current.states.Select(s => s.state))
-                {
+                foreach (var state in current.states.Select(s => s.state)) {
                     yield return state;
                 }
             }
@@ -225,21 +205,16 @@ namespace WKVRCOptimizer.Extensions
         {
             var queue = new Queue<AnimatorStateMachine>();
             queue.Enqueue(stateMachine);
-            while (queue.Count > 0)
-            {
+            while (queue.Count > 0) {
                 var current = queue.Dequeue();
-                foreach (var subStateMachine in current.stateMachines)
-                {
+                foreach (var subStateMachine in current.stateMachines) {
                     queue.Enqueue(subStateMachine.stateMachine);
                 }
-                foreach (var behaviour in current.behaviours)
-                {
+                foreach (var behaviour in current.behaviours) {
                     yield return behaviour;
                 }
-                foreach (var state in current.states.Select(s => s.state))
-                {
-                    foreach (var behaviour in state.behaviours)
-                    {
+                foreach (var state in current.states.Select(s => s.state)) {
+                    foreach (var behaviour in state.behaviours) {
                         yield return behaviour;
                     }
                 }
@@ -252,14 +227,12 @@ namespace WKVRCOptimizer.Extensions
             var stateTransitions = new List<AnimatorTransitionBase>();
             var transitions = new List<AnimatorTransitionBase>();
             queue.Enqueue(stateMachine);
-            while (queue.Count > 0)
-            {
+            while (queue.Count > 0) {
                 var current = queue.Dequeue();
                 transitions.AddRange(current.entryTransitions);
                 stateTransitions.AddRange(current.anyStateTransitions);
                 stateTransitions.AddRange(current.states.SelectMany(s => s.state.transitions));
-                foreach (var subStateMachine in current.stateMachines)
-                {
+                foreach (var subStateMachine in current.stateMachines) {
                     queue.Enqueue(subStateMachine.stateMachine);
                     transitions.AddRange(current.GetStateMachineTransitions(subStateMachine.stateMachine));
                 }
@@ -270,21 +243,13 @@ namespace WKVRCOptimizer.Extensions
 
         public static IEnumerable<AnimationClip> EnumerateAllClips(this Motion motion)
         {
-            if (motion is AnimationClip clip)
-            {
+            if (motion is AnimationClip clip) {
                 yield return clip;
-            }
-            else if (motion is BlendTree tree)
-            {
+            } else if (motion is BlendTree tree) {
                 var childNodes = tree.children;
-                for (int i = 0; i < childNodes.Length; i++)
-                {
-                    if (childNodes[i].motion == null)
-                    {
-                        continue;
-                    }
-                    foreach (var childClip in childNodes[i].motion.EnumerateAllClips())
-                    {
+                for (int i = 0; i < childNodes.Length; i++) {
+                    if (childNodes[i].motion == null) continue;
+                    foreach (var childClip in childNodes[i].motion.EnumerateAllClips()) {
                         yield return childClip;
                     }
                 }
@@ -293,32 +258,24 @@ namespace WKVRCOptimizer.Extensions
 
         public static IEnumerable<(AnimatorState state, Motion motion)> EnumerateAllMotionOverrides(this AnimatorControllerLayer layer)
         {
-            if (layer.syncedLayerIndex < 0)
-            {
+            if (layer.syncedLayerIndex < 0) {
                 yield break;
             }
-            // use reflection to get the private StateMotionPair[] m_Motions; field from the layer
             var field = typeof(AnimatorControllerLayer).GetField("m_Motions", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
             var value = field.GetValue(layer);
-            if (value == null)
-            {
+            if (value == null) {
                 yield break;
             }
             var stateMotionPairs = value as System.Array;
-            if (stateMotionPairs == null)
-            {
+            if (stateMotionPairs == null) {
                 yield break;
             }
-            // StateMotionPair is an internal struct with 2 fields: public AnimatorState m_State; public Motion m_Motion;
-            // use reflection again to iterate over the motions and state pairs
-            foreach (var stateMotionPair in stateMotionPairs)
-            {
+            foreach (var stateMotionPair in stateMotionPairs) {
                 var stateField = stateMotionPair.GetType().GetField("m_State", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
                 var state = stateField.GetValue(stateMotionPair) as AnimatorState;
                 var motionField = stateMotionPair.GetType().GetField("m_Motion", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
                 var motionValue = motionField.GetValue(stateMotionPair) as Motion;
-                if (state != null)
-                {
+                if (state != null) {
                     yield return (state, motionValue);
                 }
             }
@@ -340,14 +297,11 @@ namespace WKVRCOptimizer.Extensions
     {
         public static bool StartsWithSimple(this string str, string value)
         {
-            if (str.Length < value.Length)
-            {
+            if (str.Length < value.Length) {
                 return false;
             }
-            for (int i = 0; i < value.Length; i++)
-            {
-                if (str[i] != value[i])
-                {
+            for (int i = 0; i < value.Length; i++) {
+                if (str[i] != value[i]) {
                     return false;
                 }
             }
@@ -356,14 +310,11 @@ namespace WKVRCOptimizer.Extensions
         
         public static bool StartsWithSimple(this string str, string value, int startIndex)
         {
-            if (str.Length - startIndex < value.Length)
-            {
+            if (str.Length - startIndex < value.Length) {
                 return false;
             }
-            for (int i = 0; i < value.Length; i++)
-            {
-                if (str[startIndex + i] != value[i])
-                {
+            for (int i = 0; i < value.Length; i++) {
+                if (str[startIndex + i] != value[i]) {
                     return false;
                 }
             }

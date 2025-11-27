@@ -50,33 +50,40 @@ namespace WKVRCOptimizer.Core
         public bool IsHumanoid()
         {
             var rootAnimator = gameObject.GetComponent<Animator>();
-            return rootAnimator != null && rootAnimator.avatar != null && rootAnimator.avatar.isHuman;
+            var result = rootAnimator != null && rootAnimator.avatar != null && rootAnimator.avatar.isHuman;
+            return result;
         }
 
         public AnimatorController GetFXLayer()
         {
             var avDescriptor = gameObject.GetComponent<VRCAvatarDescriptor>();
             var baseLayerCount = IsHumanoid() ? 5 : 3;
-            if (avDescriptor == null || avDescriptor.baseAnimationLayers.Length != baseLayerCount)
+            if (avDescriptor == null || avDescriptor.baseAnimationLayers.Length != baseLayerCount) {
                 return null;
-            return avDescriptor.baseAnimationLayers[baseLayerCount - 1].animatorController as AnimatorController;
+            }
+            var result = avDescriptor.baseAnimationLayers[baseLayerCount - 1].animatorController as AnimatorController;
+            return result;
         }
 
         public AnimatorControllerLayer[] GetFXLayerLayers()
         {
-            if (cache_GetFXLayerLayers != null)
+            if (cache_GetFXLayerLayers != null) {
                 return cache_GetFXLayerLayers;
+            }
             var fxLayer = GetFXLayer();
-            return cache_GetFXLayerLayers = fxLayer != null ? fxLayer.layers : new AnimatorControllerLayer[0];
+            var result = fxLayer != null ? fxLayer.layers : new AnimatorControllerLayer[0];
+            return cache_GetFXLayerLayers = result;
         }
 
         public List<List<string>> AnalyzeFXLayerMergeAbility()
         {
-            if (cache_AnalyzeFXLayerMergeAbility != null)
+            if (cache_AnalyzeFXLayerMergeAbility != null) {
                 return cache_AnalyzeFXLayerMergeAbility;
+            }
             var fxLayer = GetFXLayer();
-            if (fxLayer == null)
+            if (fxLayer == null) {
                 return new List<List<string>>();
+            }
             var avDescriptor = gameObject.GetComponent<VRCAvatarDescriptor>();
 
             var fxLayerLayers = GetFXLayerLayers();
@@ -470,8 +477,9 @@ namespace WKVRCOptimizer.Core
         private HashSet<(string path, Type type)> GetAllCurveBindings(AnimatorStateMachine stateMachine)
         {
             var result = new HashSet<(string, Type)>();
-            if (stateMachine == null)
+            if (stateMachine == null) {
                 return result;
+            }
             foreach (var state in stateMachine.EnumerateAllStates())
             {
                 if (state.motion == null)
@@ -497,16 +505,19 @@ namespace WKVRCOptimizer.Core
         {
             var errors = AnalyzeFXLayerMergeAbility();
             var nonErrors = new HashSet<string>() {"toggle", "motion time", "useless", "blend tree", "multi toggle"};
-            return layerIndex < errors.Count && errors[layerIndex].Count == 1 && nonErrors.Contains(errors[layerIndex][0]);
+            var result = layerIndex < errors.Count && errors[layerIndex].Count == 1 && nonErrors.Contains(errors[layerIndex][0]);
+            return result;
         }
 
         public HashSet<int> FindUselessFXLayers()
         {
-            if (cache_FindUselessFXLayers != null)
+            if (cache_FindUselessFXLayers != null) {
                 return cache_FindUselessFXLayers;
+            }
             var fxLayer = GetFXLayer();
-            if (fxLayer == null || !settings.OptimizeFXLayer)
+            if (fxLayer == null || !settings.OptimizeFXLayer) {
                 return new HashSet<int>();
+            }
             Profiler.StartSection("FindUselessFXLayers()");
             var avDescriptor = gameObject.GetComponent<VRCAvatarDescriptor>();
 
@@ -558,11 +569,13 @@ namespace WKVRCOptimizer.Core
             int lastNonUselessLayer = fxLayerLayers.Length;
             for (int i = fxLayerLayers.Length - 1; i >= 0; i--)
             {
-                if (i <= 2 && settings.MMDCompatibility)
+                if (i <= 2 && settings.MMDCompatibility) {
                     break;
+                }
                 var layer = fxLayerLayers[i];
-                if (layer.syncedLayerIndex != -1)
+                if (layer.syncedLayerIndex != -1) {
                     continue;
+                }
                 bool isNotFirstLayerOrLastNonUselessLayerCanBeFirst = i != 0 ||
                     (lastNonUselessLayer < fxLayerLayers.Length && fxLayerLayers[lastNonUselessLayer].avatarMask == layer.avatarMask
                         && fxLayerLayers[lastNonUselessLayer].defaultWeight == 1 && !isAffectedByLayerWeightControl.Contains(lastNonUselessLayer));
@@ -608,11 +621,13 @@ namespace WKVRCOptimizer.Core
 
         public HashSet<AnimationClip> GetAllUsedFXLayerAnimationClips()
         {
-            if (cache_GetAllUsedFXLayerAnimationClips != null)
+            if (cache_GetAllUsedFXLayerAnimationClips != null) {
                 return cache_GetAllUsedFXLayerAnimationClips;
+            }
             var fxLayer = GetFXLayer();
-            if (fxLayer == null)
+            if (fxLayer == null) {
                 return new HashSet<AnimationClip>();
+            }
             var unusedLayers = FindUselessFXLayers();
             var usedClips = new HashSet<AnimationClip>();
             var fxLayerLayers = GetFXLayerLayers();
@@ -634,11 +649,13 @@ namespace WKVRCOptimizer.Core
 
         public bool DoesFXLayerUseWriteDefaults()
         {
-            if (cache_DoesFXLayerUseWriteDefaults != null)
+            if (cache_DoesFXLayerUseWriteDefaults != null) {
                 return cache_DoesFXLayerUseWriteDefaults.Value;
+            }
             var fxLayer = GetFXLayer();
-            if (fxLayer == null)
+            if (fxLayer == null) {
                 return false;
+            }
             var fxLayerLayers = GetFXLayerLayers();
             for (int i = 0; i < fxLayerLayers.Length; i++)
             {
@@ -662,8 +679,9 @@ namespace WKVRCOptimizer.Core
 
         public HashSet<EditorCurveBinding> GetAllUsedFXLayerCurveBindings()
         {
-            if (cache_GetAllUsedFXLayerCurveBindings != null)
+            if (cache_GetAllUsedFXLayerCurveBindings != null) {
                 return cache_GetAllUsedFXLayerCurveBindings;
+            }
             var result = new HashSet<EditorCurveBinding>();
             foreach (var clip in GetAllUsedFXLayerAnimationClips())
             {
@@ -675,41 +693,48 @@ namespace WKVRCOptimizer.Core
 
         public HashSet<string> FindAllGameObjectTogglePaths()
         {
-            if (cache_FindAllGameObjectTogglePaths != null)
+            if (cache_FindAllGameObjectTogglePaths != null) {
                 return cache_FindAllGameObjectTogglePaths;
+            }
             var togglePaths = new HashSet<string>();
             var fxLayer = GetFXLayer();
-            if (fxLayer == null)
+            if (fxLayer == null) {
                 return togglePaths;
+            }
             foreach (var binding in GetAllUsedFXLayerCurveBindings())
             {
-                if (binding.type == typeof(GameObject) && binding.propertyName == "m_IsActive")
+                if (binding.type == typeof(GameObject) && binding.propertyName == "m_IsActive") {
                     togglePaths.Add(binding.path);
+                }
             }
             return cache_FindAllGameObjectTogglePaths = togglePaths;
         }
 
         public HashSet<string> FindAllRendererTogglePaths()
         {
-            if (cache_FindAllRendererTogglePaths != null)
+            if (cache_FindAllRendererTogglePaths != null) {
                 return cache_FindAllRendererTogglePaths;
+            }
             var togglePaths = new HashSet<string>();
             foreach (var binding in GetAllUsedFXLayerCurveBindings())
             {
-                if (typeof(Renderer).IsAssignableFrom(binding.type) && binding.propertyName == "m_Enabled")
+                if (typeof(Renderer).IsAssignableFrom(binding.type) && binding.propertyName == "m_Enabled") {
                     togglePaths.Add(binding.path);
+                }
             }
             togglePaths.UnionWith(FindAllGameObjectTogglePaths());
             return cache_FindAllRendererTogglePaths = togglePaths;
         }
 
         public Dictionary<string, HashSet<string>> FindAllAnimatedMaterialProperties() {
-            if (cache_FindAllAnimatedMaterialProperties != null)
+            if (cache_FindAllAnimatedMaterialProperties != null) {
                 return cache_FindAllAnimatedMaterialProperties;
+            }
             var map = new Dictionary<string, HashSet<string>>();
             var fxLayer = GetFXLayer();
-            if (fxLayer == null)
+            if (fxLayer == null) {
                 return map;
+            }
             foreach (var binding in GetAllUsedFXLayerCurveBindings()) {
                 if (!binding.propertyName.StartsWithSimple("material.") || !typeof(Renderer).IsAssignableFrom(binding.type))
                     continue;
@@ -730,12 +755,14 @@ namespace WKVRCOptimizer.Core
         private HashSet<AnimationClip> cache_GetAllUsedAnimationClips = null;
         public HashSet<AnimationClip> GetAllUsedAnimationClips()
         {
-            if (cache_GetAllUsedAnimationClips != null)
+            if (cache_GetAllUsedAnimationClips != null) {
                 return cache_GetAllUsedAnimationClips;
+            }
             var usedClips = new HashSet<AnimationClip>();
             var avDescriptor = gameObject.GetComponent<VRCAvatarDescriptor>();
-            if (avDescriptor == null)
+            if (avDescriptor == null) {
                 return usedClips;
+            }
             var fxLayer = GetFXLayer();
             foreach (var layer in avDescriptor.baseAnimationLayers)
             {
@@ -757,8 +784,9 @@ namespace WKVRCOptimizer.Core
 
         public Dictionary<(string path, int index), HashSet<Material>> FindAllMaterialSwapMaterials()
         {
-            if (cache_FindAllMaterialSwapMaterials != null)
+            if (cache_FindAllMaterialSwapMaterials != null) {
                 return cache_FindAllMaterialSwapMaterials;
+            }
             var result = new Dictionary<(string path, int index), HashSet<Material>>();
             foreach (var clip in GetAllUsedAnimationClips())
             {
@@ -786,8 +814,9 @@ namespace WKVRCOptimizer.Core
 
         public HashSet<EditorCurveBinding> GetAllMaterialSwapBindingsToRemove()
         {
-            if (cache_GetAllMaterialSwapBindingsToRemove != null)
+            if (cache_GetAllMaterialSwapBindingsToRemove != null) {
                 return cache_GetAllMaterialSwapBindingsToRemove;
+            }
             var result = new HashSet<EditorCurveBinding>();
             if (cache_MaterialSwapBindingsToRemove != null)
             {
@@ -802,20 +831,23 @@ namespace WKVRCOptimizer.Core
 
         private bool IsMaterialSwapBinding(EditorCurveBinding binding)
         {
-            return typeof(Renderer).IsAssignableFrom(binding.type)
+            var result = typeof(Renderer).IsAssignableFrom(binding.type)
                 && binding.propertyName.StartsWithSimple("m_Materials.Array.data[");
+            return result;
         }
 
         private bool ShouldRemoveMaterialSwapBinding(EditorCurveBinding binding)
         {
             if (cache_MaterialSwapBindingsToRemove == null)
                 cache_MaterialSwapBindingsToRemove = new Dictionary<EditorCurveBinding, bool>();
-            if (cache_MaterialSwapBindingsToRemove.TryGetValue(binding, out var result))
+            if (cache_MaterialSwapBindingsToRemove.TryGetValue(binding, out var result)) {
                 return result;
+            }
             int slot = int.Parse(binding.propertyName.Substring("m_Materials.Array.data[".Length, binding.propertyName.Length - "m_Materials.Array.data[]".Length));
             var renderer = gameObject.transform.GetTransformFromPath(binding.path)?.GetComponent<Renderer>();
-            return cache_MaterialSwapBindingsToRemove[binding]
-                = renderer == null || renderer.sharedMaterials.Length <= slot;
+            result = renderer == null || renderer.sharedMaterials.Length <= slot;
+            cache_MaterialSwapBindingsToRemove[binding] = result;
+            return result;
         }
     }
 }

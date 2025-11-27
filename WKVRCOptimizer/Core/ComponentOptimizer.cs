@@ -43,7 +43,6 @@ namespace WKVRCOptimizer.Core
 
         public void DestroyEditorOnlyGameObjects()
         {
-            Debug.Log("[ComponentOptimizer] Destroying EditorOnly GameObjects...");
             var stack = new Stack<Transform>();
             stack.Push(gameObject.transform);
             while (stack.Count > 0)
@@ -51,7 +50,6 @@ namespace WKVRCOptimizer.Core
                 var current = stack.Pop();
                 if (current.gameObject.CompareTag("EditorOnly"))
                 {
-                    Debug.Log($"[ComponentOptimizer] Destroying EditorOnly object: {current.name}");
                     Object.DestroyImmediate(current.gameObject);
                     continue;
                 }
@@ -67,13 +65,11 @@ namespace WKVRCOptimizer.Core
             if (!settings.DeleteUnusedComponents)
                 return;
             
-            Debug.Log("[ComponentOptimizer] Destroying unused components...");
             var list = FindAllUnusedComponents();
             foreach (var component in list)
             {
                 if (component == null)
                     continue;
-                Debug.Log($"[ComponentOptimizer] Destroying unused component: {component.GetType().Name} on {component.name}");
                 if (component is AudioSource audio)
                 {
                     var vrcAudioSource = audio.GetComponent<VRCSpatialAudioSource>();
@@ -91,7 +87,6 @@ namespace WKVRCOptimizer.Core
             if (settings.DeleteUnusedGameObjects == 0)
                 return;
 
-            Debug.Log("[ComponentOptimizer] Destroying unused GameObjects...");
             var used = new HashSet<Transform>();
 
             var movingTransforms = FindAllMovingTransforms();
@@ -172,7 +167,6 @@ namespace WKVRCOptimizer.Core
                 }
                 if (!used.Contains(current))
                 {
-                    Debug.Log($"[ComponentOptimizer] Destroying unused GameObject: {current.name}");
                     foreach (var child in current.Cast<Transform>().ToArray())
                     {
                         child.parent = current.parent;
@@ -220,7 +214,6 @@ namespace WKVRCOptimizer.Core
             if (fxLayer == null)
                 return new HashSet<Component>();
             
-            Debug.Log("[ComponentOptimizer] Finding unused components...");
             var behaviourToggles = new HashSet<string>();
             foreach (var binding in optimizer.fxLayerOptimizer.GetAllUsedFXLayerCurveBindings()) {
                 if (typeof(Behaviour).IsAssignableFrom(binding.type) && binding.propertyName == "m_Enabled") {
@@ -264,7 +257,6 @@ namespace WKVRCOptimizer.Core
 
             alwaysDisabledBehaviours.RemoveWhere(c => exclusions.Contains(c.transform) || c.transform == gameObject.transform);
 
-            Debug.Log($"[ComponentOptimizer] Found {alwaysDisabledBehaviours.Count} unused components.");
             return cache_FindAllUnusedComponents = alwaysDisabledBehaviours;
         }
 
@@ -273,7 +265,6 @@ namespace WKVRCOptimizer.Core
             if (cache_FindAllAlwaysDisabledGameObjects != null)
                 return cache_FindAllAlwaysDisabledGameObjects;
             
-            Debug.Log("[ComponentOptimizer] Finding always disabled game objects...");
             var togglePaths = optimizer.FindAllGameObjectTogglePaths();
             var disabledGameObjects = new HashSet<Transform>();
             var queue = new Queue<Transform>();
@@ -300,7 +291,6 @@ namespace WKVRCOptimizer.Core
                     }
                 }
             }
-            Debug.Log($"[ComponentOptimizer] Found {disabledGameObjects.Count} always disabled game objects.");
             return cache_FindAllAlwaysDisabledGameObjects = disabledGameObjects;
         }
         
@@ -309,7 +299,6 @@ namespace WKVRCOptimizer.Core
             if (cache_FindAllPhysBoneDependencies != null)
                 return cache_FindAllPhysBoneDependencies;
             
-            Debug.Log("[ComponentOptimizer] Finding PhysBone dependencies...");
             var result = new Dictionary<VRCPhysBoneBase, HashSet<Object>>();
             var physBonePath = new Dictionary<string, VRCPhysBoneBase>();
             var physBones = gameObject.GetComponentsInChildren<VRCPhysBoneBase>(true);
@@ -450,7 +439,6 @@ namespace WKVRCOptimizer.Core
             var result = new Dictionary<string, List<string>>();
             if (!settings.DisablePhysBonesWhenUnused)
                 return result;
-            Debug.Log("[ComponentOptimizer] Finding PhysBones to disable...");
             var physBoneDependencies = FindAllPhysBoneDependencies();
             foreach (var dependencies in physBoneDependencies.Values)
             {
@@ -466,7 +454,6 @@ namespace WKVRCOptimizer.Core
                         result[targetPath] = physBones = new List<string>();
                     }
                     physBones.Add(entry.Key.transform.GetPathToRoot(gameObject.transform));
-                    Debug.Log($"[ComponentOptimizer] Disabling PhysBone {entry.Key.name} when {target.name} is unused.");
                 }
             }
             return result;
@@ -477,7 +464,6 @@ namespace WKVRCOptimizer.Core
             if (cache_FindAllMovingTransforms != null)
                 return cache_FindAllMovingTransforms;
             
-            Debug.Log("[ComponentOptimizer] Finding moving transforms...");
             var avDescriptor = gameObject.GetComponent<VRCAvatarDescriptor>();
             if (avDescriptor == null)
                 return new HashSet<Transform>();
@@ -595,7 +581,6 @@ namespace WKVRCOptimizer.Core
 
             transforms.UnionWith(gameObject.transform.GetAllDescendants().Where(t => t.localScale != Vector3.one));
 
-            Debug.Log($"[ComponentOptimizer] Found {transforms.Count} moving transforms.");
             return cache_FindAllMovingTransforms = transforms;
         }
 
@@ -684,7 +669,6 @@ namespace WKVRCOptimizer.Core
             if (cache_FindAllPenetrators != null)
                 return cache_FindAllPenetrators;
             
-            Debug.Log("[ComponentOptimizer] Finding penetrators...");
             var penetratorTipLights = gameObject.GetComponentsInChildren<Light>(true)
                 .Where(l => IsDPSPenetratorTipLight(l)).ToList();
             var penetrators = new HashSet<Renderer>();
@@ -701,7 +685,6 @@ namespace WKVRCOptimizer.Core
                 }
             }
             penetrators.UnionWith(gameObject.GetComponentsInChildren<Renderer>(true).Where(m => IsTPSPenetratorRoot(m.transform) || IsSPSPenetratorRoot(m.transform)));
-            Debug.Log($"[ComponentOptimizer] Found {penetrators.Count} penetrators.");
             return cache_FindAllPenetrators = penetrators;
         }
 
@@ -709,7 +692,6 @@ namespace WKVRCOptimizer.Core
         {
             if (!settings.UseRingFingerAsFootCollider)
                 return;
-            Debug.Log("[ComponentOptimizer] Moving Ring Finger Collider to Feet...");
             var avDescriptor = gameObject.GetComponent<VRCAvatarDescriptor>();
 
             var collider = avDescriptor.collider_footL;

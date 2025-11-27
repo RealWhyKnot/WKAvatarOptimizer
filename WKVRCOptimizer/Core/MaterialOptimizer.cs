@@ -123,7 +123,6 @@ namespace WKVRCOptimizer.Core
 
         public void DeduplicateMaterials()
         {
-            Debug.Log("[MaterialOptimizer] Deduplicating materials...");
             var allRenderers = gameObject.GetComponentsInChildren<Renderer>(true);
             var allUsedMaterials = allRenderers.SelectMany(x => x.sharedMaterials).Where(m => m != null).Distinct().ToArray();
             var materialGroups = allUsedMaterials.GroupBy(x => x, new MaterialAssetComparer()).ToList();
@@ -149,14 +148,12 @@ namespace WKVRCOptimizer.Core
                 }
                 if (changed) {
                     renderer.sharedMaterials = materials;
-                    Debug.Log($"[MaterialOptimizer] Deduplicated materials on renderer: {renderer.name}");
                 }
             }
         }
 
         public void OptimizeMaterialSwapMaterials()
         {
-            Debug.Log("[MaterialOptimizer] Optimizing material swap materials...");
             var exclusions = optimizer.componentOptimizer.GetAllExcludedTransforms();
             foreach (var entry in context.slotSwapMaterials)
             {
@@ -184,7 +181,6 @@ namespace WKVRCOptimizer.Core
                         var matWrapper = new List<List<(Material, List<string>)>>() { new List<(Material, List<string>)>() { (material, new List<string> { entry.Key.path } ) } };
                         var mergedMeshIndexWrapper = new List<List<int>>() { new List<int>() { meshIndex } };
                         optimizedMaterialsMap[material] = CreateOptimizedMaterials(matWrapper, mergedMeshCount, targetPath, mergedMeshIndexWrapper)[0];
-                        Debug.Log($"[MaterialOptimizer] Optimized material swap for {material.name} at {entry.Key.path}");
                     }
                 }
             }
@@ -222,10 +218,8 @@ namespace WKVRCOptimizer.Core
             string path,
             List<List<int>> mergedMeshIndices = null)
         {
-            Debug.Log($"[MaterialOptimizer] Creating optimized materials for path: {path}");
             if (!(settings.WritePropertiesAsStaticValues || sources.Any(list => list.Count > 1) || (meshToggleCount > 1 && settings.MergeSkinnedMeshesWithShaderToggle == 1)))
             {
-                Debug.Log("[MaterialOptimizer] No optimization needed, returning original materials.");
                 return sources.Select(list => list[0].mat).ToArray();
             }
             if (!context.fusedAnimatedMaterialProperties.TryGetValue(path, out var usedMaterialProps))
@@ -394,13 +388,11 @@ namespace WKVRCOptimizer.Core
                     if (usedMaterialProps.Contains(tuple.Key) && !(meshToggleCount > 1))
                     {
                         arrayPropertyValues[i].Remove(tuple.Key);
-                        Debug.Log($"[MaterialOptimizer] Removing {tuple.Key} from arrayPropertyValues for path {path} because it's used and not a mesh toggle.");
                     }
                     else if (tuple.Value.values.All(v => v == tuple.Value.values[0]))
                     {
                         arrayPropertyValues[i].Remove(tuple.Key);
                         replace[i][tuple.Key] = tuple.Value.values[0];
-                        Debug.Log($"[MaterialOptimizer] Replacing {tuple.Key} with static value {tuple.Value.values[0]} for path {path}.");
                     }
                 }
                 if (!settings.WritePropertiesAsStaticValues)
@@ -408,7 +400,6 @@ namespace WKVRCOptimizer.Core
                     foreach (string key in replace[i].Keys.Where(k => !k.StartsWithSimple("arrayIndex")).ToArray())
                     {
                         replace[i].Remove(key);
-                        Debug.Log("[MaterialOptimizer] Removing non-arrayIndex static property {key} as WritePropertiesAsStaticValues is false.");
                     }
                 }
 
@@ -495,7 +486,6 @@ namespace WKVRCOptimizer.Core
                         stripShadowVariants[i],
                         animatedPropertyOnMeshID
                     );
-                    Debug.Log($"[MaterialOptimizer] Generated optimized shader for material {sanitizedMaterialNames[i]}.");
                 }
             });
             Profiler.EndSection();
@@ -541,7 +531,6 @@ namespace WKVRCOptimizer.Core
 
         public void SaveOptimizedMaterials()
         {
-            Debug.Log("[MaterialOptimizer] Saving optimized materials...");
             Profiler.StartSection("AssetDatabase.ImportAsset()");
             try
             {
@@ -635,6 +624,12 @@ namespace WKVRCOptimizer.Core
                 {
                     mat.SetOverrideTag("VRCFallback", vrcFallback);
                 }
+                
+                // Explicitly set WKVRCOptimizer_Zero to 0 to ensure NaN checks in shader work correctly
+                // This uniform is used for bitwise XOR NaN checks and dummy code blocks. 
+                // Must be strictly 0.0f.
+                mat.SetFloat("WKVRCOptimizer_Zero", 0.0f);
+                
                 Profiler.EndSection();
             }
 
@@ -713,14 +708,11 @@ namespace WKVRCOptimizer.Core
             foreach (var mat in context.optimizedMaterials.Select(o => o.Value.target))
             {
                 AssetManager.CreateUniqueAsset(context, mat, mat.name + ".mat");
-                Debug.Log($"[MaterialOptimizer] Created unique asset for optimized material: {mat.name}");
             }
-            Debug.Log("[MaterialOptimizer] Finished saving optimized materials.");
         }
 
         public void CombineAndOptimizeMaterials()
         {
-            Debug.Log("[MaterialOptimizer] Combining and optimizing materials...");
             var exclusions = optimizer.componentOptimizer.GetAllExcludedTransforms(); // Using delegated componentOptimizer
             var skinnedMeshRenderers = gameObject.GetComponentsInChildren<SkinnedMeshRenderer>(true)
                 .Where(smr => !exclusions.Contains(smr.transform) && smr.sharedMesh != null).ToArray();
@@ -908,7 +900,6 @@ namespace WKVRCOptimizer.Core
                     Profiler.EndSection();
 
                     AssetManager.CreateUniqueAsset(context, newMesh, newMesh.name + ".asset");
-                    Debug.Log($"[MaterialOptimizer] Created unique asset for new mesh: {newMesh.name}");
 
                     meshRenderer.sharedMesh = newMesh;
                 }
@@ -939,10 +930,9 @@ namespace WKVRCOptimizer.Core
                         context.optimizedSlotSwapMaterials[originalSlot] = optimizedSwapMaterials = new Dictionary<Material, Material>();
                     }
                     optimizedSwapMaterials[uniqueMatchedMaterials[i][0].material] = optimizedMaterials[i];
-                    Debug.Log($"[MaterialOptimizer] Remapped material slot animation path for {uniqueMatchedMaterials[i][0].material.name}.");
                 }
 
-                meshRenderer.sharedMaterials = context.optimizedMaterials.Values.Select(x => x.target).ToArray();
+                meshRenderer.sharedMaterials = optimizedMaterials;
 
                 foreach (var ps in optimizer.meshOptimizer.GetParticleSystemsUsingRenderer(meshRenderer)) // Updated delegate
                 {
@@ -957,7 +947,6 @@ namespace WKVRCOptimizer.Core
 
         public void OptimizeMaterialsOnNonSkinnedMeshes()
         {
-            Debug.Log("[MaterialOptimizer] Optimizing materials on non-skinned meshes...");
             var meshRenderers = gameObject.GetComponentsInChildren<MeshRenderer>(true);
             var exclusions = optimizer.componentOptimizer.GetAllExcludedTransforms(); // Using delegated componentOptimizer
             foreach (var meshRenderer in meshRenderers)
@@ -986,14 +975,14 @@ namespace WKVRCOptimizer.Core
                     Material currentMaterial = meshRenderer.sharedMaterials[i];
                     if (currentMaterial == null) continue;
 
-                    // Try to get optimized material from the general optimizedMaterials dictionary
-                    if (context.optimizedMaterials.TryGetValue(currentMaterial, out var optimizedTuple))
+                    // Try to get optimized material from the local optimizedMaterials dictionary (Source -> Target)
+                    if (optimizedMaterials.TryGetValue(currentMaterial, out var optimizedMaterial))
                     {
-                        finalMaterials[i] = optimizedTuple.target;
+                        finalMaterials[i] = optimizedMaterial;
                     }
                     else
                     {
-                        // If not found in general optimizedMaterials, check slot-specific optimizations
+                        // If not found in local map, check slot-specific optimizations
                         if (context.optimizedSlotSwapMaterials.TryGetValue((path, i), out var optimizedSwapMaterialMap))
                         {
                             if (optimizedSwapMaterialMap.TryGetValue(currentMaterial, out var slotOptimizedMaterial))
@@ -1008,7 +997,6 @@ namespace WKVRCOptimizer.Core
                     }
                 }
                 meshRenderer.sharedMaterials = finalMaterials;
-                Debug.Log($"[MaterialOptimizer] Optimized materials on non-skinned mesh: {meshRenderer.name}");
             }
         }
 
@@ -1016,13 +1004,11 @@ namespace WKVRCOptimizer.Core
         {
             if (cache_FindAllUsedMaterials != null)
                 return cache_FindAllUsedMaterials;
-            Debug.Log("[MaterialOptimizer] Finding all used materials...");
             var materials = new HashSet<Material>();
             foreach (var renderer in optimizer.componentOptimizer.GetUsedComponentsInChildren<Renderer>()) // Updated delegate: GetUsedComponentsInChildren is in componentOptimizer (inherited/moved logic) - Wait, Main has it.
             {
                 materials.UnionWith(renderer.sharedMaterials.Where(m => m != null));
             }
-            Debug.Log($"[MaterialOptimizer] Found {materials.Count} used materials.");
             return cache_FindAllUsedMaterials = materials;
         }
 
@@ -1030,7 +1016,6 @@ namespace WKVRCOptimizer.Core
 
         public List<List<MaterialSlot>> FindAllMergeAbleMaterials(IEnumerable<Renderer> renderers)
         {
-            Debug.Log("[MaterialOptimizer] Finding all mergeable materials...");
             var matched = new List<List<MaterialSlot>>();
             foreach (var renderer in renderers)
             {
@@ -1052,16 +1037,17 @@ namespace WKVRCOptimizer.Core
                     }
                 }
             }
-            Debug.Log($"[MaterialOptimizer] Found {matched.Count} groups of mergeable materials.");
             return matched;
         }
 
         private bool CanCombineMaterialsWith(List<MaterialSlot> list, MaterialSlot candidate)
         {
-            // ...
+            // Check simple things first to fail fast
+            if (list[0].material != candidate.material)
+                return false;
             if (optimizer.meshOptimizer.GetParticleSystemsUsingRenderer(candidate.renderer).Any(ps => ps.shape.useMeshMaterialIndex && ps.shape.meshMaterialIndex == candidate.index)) // Updated delegate
                 return false;
-            // ...
+            
             return true;
         }
     }

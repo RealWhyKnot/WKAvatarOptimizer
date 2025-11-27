@@ -53,8 +53,6 @@ namespace WKVRCOptimizer.Core
                 AssetDatabase.DeleteAsset(trashBinRoot + "/TrashBin");
             }
             AssetDatabase.CreateFolder(trashBinRoot, "TrashBin");
-            // Reset bundle paths in context (we need to add these fields to context first if they aren't there)
-            // Checking context... context.binaryAssetBundlePath and materialAssetBundlePath need to be added.
         }
 
         public static void CreateUniqueAsset(OptimizationContext context, Object asset, string name)

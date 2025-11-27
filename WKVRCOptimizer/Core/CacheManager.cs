@@ -6,10 +6,12 @@ using UnityEngine;
 using WKVRCOptimizer.Data;
 using WKVRCOptimizer.Extensions;
 
+
 namespace WKVRCOptimizer.Core
 {
     public class CacheManager
     {
+
         private readonly OptimizationContext context;
         private readonly Settings settings;
         private readonly GameObject root;

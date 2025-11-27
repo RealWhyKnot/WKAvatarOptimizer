@@ -2548,7 +2548,7 @@ namespace WKVRCOptimizer.Core
             {
                 output.Add($"#define {keyword} 1");
             }
-            output.Add("uniform float WKVRCOptimizer_Zero;");
+            output.Add("uniform float WKVRCOptimizer_Zero; // Added by ShaderOptimizer for NaN checks");
             output.Add("static uint WKVRCOptimizer_MaterialID = 0;");
             output.Add("static uint WKVRCOptimizer_MeshID = 0;");
             if (arrayPropertyValues.Count > 0)

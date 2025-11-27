@@ -1,4 +1,4 @@
-﻿#if UNITY_EDITOR
+#if UNITY_EDITOR
 using UnityEngine;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,189 +11,191 @@ using WKVRCOptimizer.Data;
 namespace WKVRCOptimizer.Editor
 {
     public class AvatarOptimizerSettings : EditorWindow
-{
-    private static Settings defaultSettings = new Settings();
-    
-    private static readonly string PrefsPrefix = "whyknot_AvatarOptimizer_";
-
-    public static bool DoOptimizeWithDefaultSettingsWhenNoComponent
     {
-        get => EditorPrefs.GetBool(PrefsPrefix + "DoOptimizeWithDefaultSettingsWhenNoComponent", false);
-        private set => EditorPrefs.SetBool(PrefsPrefix + "DoOptimizeWithDefaultSettingsWhenNoComponent", value);
-    }
+        private static Settings defaultSettings = new Settings();
+        
+        private static readonly string PrefsPrefix = "whyknot_AvatarOptimizer_";
 
-    public static bool DoOptimizeInPlayMode
-    {
-        get => EditorPrefs.GetBool(PrefsPrefix + "DoOptimizeInPlayMode", true);
-        private set => EditorPrefs.SetBool(PrefsPrefix + "DoOptimizeInPlayMode", value);
-    }
-
-    public static int AutoRefreshPreviewTimeout
-    {
-        get => EditorPrefs.GetInt(PrefsPrefix + "AutoRefreshPreviewTimeout", 500);
-        private set => EditorPrefs.SetInt(PrefsPrefix + "AutoRefreshPreviewTimeout", value);
-    }
-
-    public static int MotionTimeApproximationSampleCount
-    {
-        get => Mathf.Clamp(EditorPrefs.GetInt(PrefsPrefix + "MotionTimeApproximationSampleCount", 5), 2, 101);
-        private set => EditorPrefs.SetInt(PrefsPrefix + "MotionTimeApproximationSampleCount", value);
-    }
-    
-    [MenuItem("Tools/whyknot/Avatar Optimizer Settings")]
-    static void Init()
-    {
-        GetWindow(typeof(AvatarOptimizerSettings));
-    }
-
-    private Vector2 scrollPos;
-
-    private class SectionScope : GUI.Scope
-    {
-        public SectionScope(string title)
+        public static bool DoOptimizeWithDefaultSettingsWhenNoComponent
         {
-            EditorGUILayout.BeginVertical(GUI.skin.box);
-            EditorGUILayout.LabelField(title, EditorStyles.boldLabel);
-            EditorGUILayout.BeginHorizontal();
-            GUILayoutUtility.GetRect(15, 15, GUILayout.Width(15));
-            EditorGUILayout.BeginVertical();
+            get => EditorPrefs.GetBool(PrefsPrefix + "DoOptimizeWithDefaultSettingsWhenNoComponent", false);
+            private set => EditorPrefs.SetBool(PrefsPrefix + "DoOptimizeWithDefaultSettingsWhenNoComponent", value);
         }
-        protected override void CloseScope()
+
+        public static bool DoOptimizeInPlayMode
         {
-            EditorGUILayout.EndVertical();
-            EditorGUILayout.EndHorizontal();
-            EditorGUILayout.Space();
-            EditorGUILayout.EndVertical();
+            get => EditorPrefs.GetBool(PrefsPrefix + "DoOptimizeInPlayMode", true);
+            private set => EditorPrefs.SetBool(PrefsPrefix + "DoOptimizeInPlayMode", value);
         }
-    }
 
-    public void OnGUI()
-    {
-        using (var scrollView = new EditorGUILayout.ScrollViewScope(scrollPos))
+        public static int AutoRefreshPreviewTimeout
         {
-            scrollPos = scrollView.scrollPosition;
+            get => EditorPrefs.GetInt(PrefsPrefix + "AutoRefreshPreviewTimeout", 500);
+            private set => EditorPrefs.SetInt(PrefsPrefix + "AutoRefreshPreviewTimeout", value);
+        }
 
-            using (new SectionScope("Global Settings"))
+        public static int MotionTimeApproximationSampleCount
+        {
+            get => Mathf.Clamp(EditorPrefs.GetInt(PrefsPrefix + "MotionTimeApproximationSampleCount", 5), 2, 101);
+            private set => EditorPrefs.SetInt(PrefsPrefix + "MotionTimeApproximationSampleCount", value);
+        }
+        
+        [MenuItem("Tools/whyknot/Avatar Optimizer Settings")]
+        static void Init()
+        {
+            GetWindow(typeof(AvatarOptimizerSettings));
+        }
+
+        private Vector2 scrollPos;
+
+        private class SectionScope : GUI.Scope
+        {
+            public SectionScope(string title)
             {
-                DoOptimizeWithDefaultSettingsWhenNoComponent = BoolFieldLeft(
-                    new GUIContent("Always Optimize on Upload", "If an Avatar does not have a WKVRCOptimizer component attached, it will be optimized with the default settings below when uploading it to VRChat."),
-                    DoOptimizeWithDefaultSettingsWhenNoComponent);
-                DoOptimizeInPlayMode = BoolFieldLeft(
-                    new GUIContent("Optimize in Play Mode", "Allows optimizing to run in play mode. (Only relevant with tools that call build in play mode)"),
-                    DoOptimizeInPlayMode);
-                AutoRefreshPreviewTimeout = IntFieldLeft(
-                    new GUIContent("Auto Refresh Preview Timeout", "In milliseconds. If the preview takes longer than this to refresh, the auto refresh will be disabled."),
-                    AutoRefreshPreviewTimeout);
-                MotionTimeApproximationSampleCount = IntFieldLeft(
-                    new GUIContent("Motion Time Approximation Sample Count", "The amount of samples used to approximate motion time states. Higher values are more accurate but generate more animation clips."),
-                    MotionTimeApproximationSampleCount);
+                EditorGUILayout.BeginVertical(GUI.skin.box);
+                EditorGUILayout.LabelField(title, EditorStyles.boldLabel);
+                EditorGUILayout.BeginHorizontal();
+                GUILayoutUtility.GetRect(15, 15, GUILayout.Width(15));
+                EditorGUILayout.BeginVertical();
             }
-
-            EditorGUILayout.Space();
-
-            using (new SectionScope("Default Settings"))
+            protected override void CloseScope()
             {
-                EditorGUILayout.HelpBox("These settings are the default values when adding the Avatar Optimizer component to a model."
-                    + "You can change them here to suit your needs."
-                    + "\nA * indicates settings that are different from their default value.", MessageType.None);
-                var fields = typeof(Settings).GetFields(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public)
-                    .Where(f => f.FieldType == typeof(bool) || f.FieldType == typeof(int)).ToArray();
-                if (GUILayout.Button("Reset to Default"))
+                EditorGUILayout.EndVertical();
+                EditorGUILayout.EndHorizontal();
+                EditorGUILayout.Space();
+                EditorGUILayout.EndVertical();
+            }
+        }
+
+        public void OnGUI()
+        {
+            using (var scrollView = new EditorGUILayout.ScrollViewScope(scrollPos))
+            {
+                scrollPos = scrollView.scrollPosition;
+
+                using (new SectionScope("Global Settings"))
                 {
+                    DoOptimizeWithDefaultSettingsWhenNoComponent = BoolFieldLeft(
+                        new GUIContent("Always Optimize on Upload", "If an Avatar does not have a WKVRCOptimizer component attached, it will be optimized with the default settings below when uploading it to VRChat."),
+                        DoOptimizeWithDefaultSettingsWhenNoComponent);
+                    DoOptimizeInPlayMode = BoolFieldLeft(
+                        new GUIContent("Optimize in Play Mode", "Allows optimizing to run in play mode. (Only relevant with tools that call build in play mode)"),
+                        DoOptimizeInPlayMode);
+                    AutoRefreshPreviewTimeout = IntFieldLeft(
+                        new GUIContent("Auto Refresh Preview Timeout", "In milliseconds. If the preview takes longer than this to refresh, the auto refresh will be disabled."),
+                        AutoRefreshPreviewTimeout);
+                    MotionTimeApproximationSampleCount = IntFieldLeft(
+                        new GUIContent("Motion Time Approximation Sample Count", "The amount of samples used to approximate motion time states. Higher values are more accurate but generate more animation clips."),
+                        MotionTimeApproximationSampleCount);
+                }
+
+                EditorGUILayout.Space();
+
+                using (new SectionScope("Default Settings"))
+                {
+                    EditorGUILayout.HelpBox("These settings are the default values when adding the Avatar Optimizer component to a model."
+                        + "You can change them here to suit your needs."
+                        + "\nA * indicates settings that are different from their default value.", MessageType.None);
+                    var fields = typeof(Settings).GetFields(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public)
+                        .Where(f => f.FieldType == typeof(bool) || f.FieldType == typeof(int)).ToArray();
+                    if (GUILayout.Button("Reset to Default"))
+                    {
+                        foreach (var field in fields)
+                        {
+                            EditorPrefs.DeleteKey(PrefsPrefix + field.Name);
+                        }
+                    }
                     foreach (var field in fields)
                     {
-                        EditorPrefs.DeleteKey(PrefsPrefix + field.Name);
-                    }
-                }
-                foreach (var field in fields)
-                {
-                    if (field.FieldType == typeof(bool))
-                    {
-                        var value = BoolFieldLeft(
-                            new GUIContent(AvatarOptimizer.GetDisplayName(field.Name) +
-                                           (field.GetValue(defaultSettings).Equals(0 != GetValue(field.Name)) ? "" : " *")),
-                            0 != GetValue(field.Name));
-                        SetValue(field.Name, value ? 1 : 0);
-                    }
-                    else
-                    {
-                        var value = PopupFieldLeft(
-                            new GUIContent(AvatarOptimizer.GetDisplayName(field.Name) +
-                                           (field.GetValue(defaultSettings).Equals(GetValue(field.Name)) ? "" : " *")),
-                            GetValue(field.Name),
-                            new string[] { "Off", "On", "Auto" });
-                        SetValue(field.Name, value);
+                        if (field.FieldType == typeof(bool))
+                        {
+                            var value = BoolFieldLeft(
+                                new GUIContent(AvatarOptimizer.GetDisplayName(field.Name) +
+                                            (field.GetValue(defaultSettings).Equals(0 != GetValue(field.Name)) ? "" : " *")), 
+                                0 != GetValue(field.Name));
+                            SetValue(field.Name, value ? 1 : 0);
+                        }
+                        else
+                        {
+                            var value = PopupFieldLeft(
+                                new GUIContent(AvatarOptimizer.GetDisplayName(field.Name) +
+                                            (field.GetValue(defaultSettings).Equals(GetValue(field.Name)) ? "" : " *")), 
+                                GetValue(field.Name),
+                                new string[] { "Off", "On", "Auto" });
+                            SetValue(field.Name, value);
+                        }
                     }
                 }
             }
         }
-    }
 
-    private int IntFieldLeft(GUIContent label, int value)
-    {
-        using (new EditorGUILayout.HorizontalScope())
+        private int IntFieldLeft(GUIContent label, int value)
         {
-            var val = EditorGUILayout.IntField(value, GUILayout.Width(50));
-            var rect = GUILayoutUtility.GetRect(label, EditorStyles.label);
-            rect.xMin -= 2;
-            GUI.Label(rect, label);
-            EditorGUILayout.Space();
-            return val;
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                var val = EditorGUILayout.IntField(value, GUILayout.Width(50));
+                var rect = GUILayoutUtility.GetRect(label, EditorStyles.label);
+                rect.xMin -= 2;
+                GUI.Label(rect, label);
+                EditorGUILayout.Space();
+                return val;
+            }
         }
-    }
 
-    private bool BoolFieldLeft(GUIContent label, bool value)
-    {
-        using (new EditorGUILayout.HorizontalScope())
+        private bool BoolFieldLeft(GUIContent label, bool value)
         {
-            GUILayoutUtility.GetRect(35, 15, GUILayout.Width(35));
-            return EditorGUILayout.ToggleLeft(label, value);
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                GUILayoutUtility.GetRect(35, 15, GUILayout.Width(35));
+                var val = EditorGUILayout.ToggleLeft(label, value);
+                return val;
+            }
         }
-    }
 
-    private int PopupFieldLeft(GUIContent label, int value, string[] options)
-    {
-        using (new EditorGUILayout.HorizontalScope())
+        private int PopupFieldLeft(GUIContent label, int value, string[] options)
         {
-            var val = EditorGUILayout.Popup(value, options, GUILayout.Width(50));
-            var rect = GUILayoutUtility.GetRect(label, EditorStyles.label);
-            rect.xMin -= 2;
-            GUI.Label(rect, label);
-            EditorGUILayout.Space();
-            return val;
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                var val = EditorGUILayout.Popup(value, options, GUILayout.Width(50));
+                var rect = GUILayoutUtility.GetRect(label, EditorStyles.label);
+                rect.xMin -= 2;
+                GUI.Label(rect, label);
+                EditorGUILayout.Space();
+                return val;
+            }
         }
-    }
 
-    public static int GetValue(string key)
-    {
-        var field = typeof(Settings).GetField(key, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
-        if (field == null)
+        public static int GetValue(string key)
         {
-            throw new System.ArgumentException("Field " + key + " does not exist in WKVRCOptimizer.Data.Settings");
+            var field = typeof(Settings).GetField(key, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+            if (field == null)
+            {
+                throw new System.ArgumentException("Field " + key + " does not exist in WKVRCOptimizer.Data.Settings");
+            }
+            var result = EditorPrefs.GetInt(PrefsPrefix + key, field.FieldType == typeof(bool) ? (bool)field.GetValue(defaultSettings) ? 1 : 0 : (int)field.GetValue(defaultSettings));
+            return result;
         }
-        return EditorPrefs.GetInt(PrefsPrefix + key, field.FieldType == typeof(bool) ? (bool)field.GetValue(defaultSettings) ? 1 : 0 : (int)field.GetValue(defaultSettings));
-    }
 
-    public static void SetValue(string key, int value)
-    {
-        var field = typeof(Settings).GetField(key, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
-        if (field == null)
+        public static void SetValue(string key, int value)
         {
-            throw new System.ArgumentException("Field " + key + " does not exist in WKVRCOptimizer.Data.Settings");
+            var field = typeof(Settings).GetField(key, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+            if (field == null)
+            {
+                throw new System.ArgumentException("Field " + key + " does not exist in WKVRCOptimizer.Data.Settings");
+            }
+            EditorPrefs.SetInt(PrefsPrefix + key, value);
         }
-        EditorPrefs.SetInt(PrefsPrefix + key, value);
-    }
 
-    public static void ApplyDefaults(AvatarOptimizer optimizer)
-    {
-        var fields = typeof(Settings).GetFields(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public)
-            .Where(f => f.FieldType == typeof(bool) || f.FieldType == typeof(int)).ToArray();
-        foreach (var field in fields)
+        public static void ApplyDefaults(AvatarOptimizer optimizer)
         {
-            var val = GetValue(field.Name);
-            field.SetValue(optimizer.settings, field.FieldType == typeof(bool) ? (object)(val != 0) : (object)val);
+            var fields = typeof(Settings).GetFields(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public)
+                .Where(f => f.FieldType == typeof(bool) || f.FieldType == typeof(int)).ToArray();
+            foreach (var field in fields)
+            {
+                var val = GetValue(field.Name);
+                field.SetValue(optimizer.settings, field.FieldType == typeof(bool) ? (object)(val != 0) : (object)val);
+            }
         }
     }
 }
 #endif
-}

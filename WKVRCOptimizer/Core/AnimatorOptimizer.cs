@@ -1,4 +1,4 @@
-﻿#if UNITY_EDITOR
+#if UNITY_EDITOR
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -14,6 +14,7 @@ using BlendableLayer = VRC.SDKBase.VRC_AnimatorLayerControl.BlendableLayer;
 namespace WKVRCOptimizer.Core
 {
     // based on https://github.com/VRLabs/Avatars-3.0-Manager/blob/main/Editor/AnimatorCloner.cs
+
     public class AnimatorOptimizer
     {
         private string assetPath;
@@ -65,7 +66,8 @@ namespace WKVRCOptimizer.Core
             optimizer.layersToDestroy = new HashSet<int>(layersToDestroy);
             optimizer.isFxLayer = constantCurvesToAdd != null;
             optimizer.constantCurvesToAdd = constantCurvesToAdd ?? new List<(EditorCurveBinding binding, float value)>();
-            return optimizer.Run();
+            var result = optimizer.Run();
+            return result;
         }
 
         private AnimatorController Run() {
@@ -222,7 +224,8 @@ namespace WKVRCOptimizer.Core
 
         public static bool IsNullOrEmpty(Motion motion)
         {
-            return motion == null || (motion is AnimationClip clip && clip.empty);
+            var result = motion == null || (motion is AnimationClip clip && clip.empty);
+            return result;
         }
 
         private void MergeLayers() {
@@ -302,10 +305,12 @@ namespace WKVRCOptimizer.Core
                 Motion layerMotion = null;
                 if (layerStates.Length == 2) {
                     var layerMotions = layerStates.Select(x => ConvertStateToMotion(x.state)).ToArray();
-                    if (IsNullOrEmpty(layerMotions[0]))
+                    if (IsNullOrEmpty(layerMotions[0])) {
                         layerMotions[0] = CloneAndFlipCurves(layerMotions[1] as AnimationClip);
-                    if (IsNullOrEmpty(layerMotions[1]))
+                    }
+                    if (IsNullOrEmpty(layerMotions[1])) {
                         layerMotions[1] = CloneAndFlipCurves(layerMotions[0] as AnimationClip);
+                    }
 
                     var transitions = layer.anyStateTransitions.Concat(layerStates.SelectMany(x => x.state.transitions)).ToArray();
                     var singleIndex = transitions.Count(x => x.destinationState == layerStates[0].state) == 1 ? 0 : 1;
@@ -711,9 +716,9 @@ namespace WKVRCOptimizer.Core
         private List<AnimatorState> GetStatesRecursive(AnimatorStateMachine sm)
         {
             List<AnimatorState> childrenStates = sm.states.Select(x => x.state).ToList();
-            foreach (var child in sm.stateMachines.Select(x => x.stateMachine))
+            foreach (var child in sm.stateMachines.Select(x => x.stateMachine)) {
                 childrenStates.AddRange(GetStatesRecursive(child));
-
+            }
             return childrenStates;
         }
 
@@ -729,18 +734,19 @@ namespace WKVRCOptimizer.Core
                 newAnimatorsByChildren?.Add(child, sm);
                 gcsm.AddRange(GetStateMachinesRecursive(child, newAnimatorsByChildren));
             }
-            
             return gcsm;
         }
 
         private AnimatorState FindMatchingState(AnimatorState original)
         {
-            return original == null ? null : stateMap.TryGetValue(original, out AnimatorState state) ? state : null;
+            var result = original == null ? null : stateMap.TryGetValue(original, out AnimatorState state) ? state : null;
+            return result;
         }
         
         private AnimatorStateMachine FindMatchingStateMachine(AnimatorStateMachine original)
         {
-            return original == null ? null : stateMachineMap.TryGetValue(original, out AnimatorStateMachine stateMachine) ? stateMachine : null;
+            var result = original == null ? null : stateMachineMap.TryGetValue(original, out AnimatorStateMachine stateMachine) ? stateMachine : null;
+            return result;
         }
 
         private void CloneTransitions(AnimatorStateMachine old, AnimatorStateMachine n)
@@ -764,14 +770,16 @@ namespace WKVRCOptimizer.Core
                     else if (transition.destinationState != null)
                     {
                         var dstState = FindMatchingState(transition.destinationState);
-                        if (dstState != null)
+                        if (dstState != null) {
                             newTransition = newStates[i].AddTransition(dstState);
+                        }
                     }
                     else if (transition.destinationStateMachine != null)
                     {
                         var dstState = FindMatchingStateMachine(transition.destinationStateMachine);
-                        if (dstState != null)
+                        if (dstState != null) {
                             newTransition = newStates[i].AddTransition(dstState);
+                        }
                     }
 
                     if (newTransition != null)
@@ -793,14 +801,16 @@ namespace WKVRCOptimizer.Core
                         else if (transition.destinationState != null)
                         {
                             var dstState = FindMatchingState(transition.destinationState);
-                            if (dstState != null)
+                            if (dstState != null) {
                                 newTransition = newAnimatorsByChildren[newStateMachines[i]].AddStateMachineTransition(newStateMachines[i], dstState);
+                            }
                         }
                         else if (transition.destinationStateMachine != null)
                         {
                             var dstState = FindMatchingStateMachine(transition.destinationStateMachine);
-                            if (dstState != null)
+                            if (dstState != null) {
                                 newTransition = newAnimatorsByChildren[newStateMachines[i]].AddStateMachineTransition(newStateMachines[i], dstState);
+                            }
                         }
 
                         if (newTransition != null)
@@ -821,14 +831,16 @@ namespace WKVRCOptimizer.Core
                 if (transition.destinationState != null)
                 {
                     var dstState = FindMatchingState(transition.destinationState);
-                    if (dstState != null)
+                    if (dstState != null) {
                         newTransition = n.AddAnyStateTransition(dstState);
+                    }
                 }
                 else if (transition.destinationStateMachine != null)
                 {
                     var dstState = FindMatchingStateMachine(transition.destinationStateMachine);
-                    if (dstState != null)
+                    if (dstState != null) {
                         newTransition = n.AddAnyStateTransition(dstState);
+                    }
                 }
 
                 if (newTransition != null)
@@ -842,14 +854,16 @@ namespace WKVRCOptimizer.Core
                 if (transition.destinationState != null)
                 {
                     var dstState = FindMatchingState(transition.destinationState);
-                    if (dstState != null)
+                    if (dstState != null) {
                         newTransition = n.AddEntryTransition(dstState);
+                    }
                 }
                 else if (transition.destinationStateMachine != null)
                 {
                     var dstState = FindMatchingStateMachine(transition.destinationStateMachine);
-                    if (dstState != null)
+                    if (dstState != null) {
                         newTransition = n.AddEntryTransition(dstState);
+                    }
                 }
 
                 if (newTransition != null)
@@ -888,9 +902,9 @@ namespace WKVRCOptimizer.Core
             newTransition.interruptionSource = transition.interruptionSource;
             newTransition.orderedInterruption = transition.orderedInterruption;
             newTransition.solo = transition.solo;
-            foreach (var condition in transition.conditions)
+            foreach (var condition in transition.conditions) {
                 AddCondition(newTransition, condition);
-            
+            }
         }
 
         private void ApplyTransitionSettings(AnimatorTransition transition, AnimatorTransition newTransition)
@@ -900,8 +914,9 @@ namespace WKVRCOptimizer.Core
             newTransition.mute = transition.mute;
             newTransition.name = transition.name;
             newTransition.solo = transition.solo;
-            foreach (var condition in transition.conditions)
+            foreach (var condition in transition.conditions) {
                 AddCondition(newTransition, condition);
+            }
         }
     }
 }

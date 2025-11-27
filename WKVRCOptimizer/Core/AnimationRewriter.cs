@@ -91,12 +91,14 @@ namespace WKVRCOptimizer.Core
                 }
                 foreach (var path in cacheManager.cache_FindAllPathsWhereMeshOrGameObjectHasOnlyOnAnimation.ToList()) {
                     var t = root.transform.GetTransformFromPath(path);
-                    if (t == null || (t.GetComponent<MeshRenderer>() == null && t.GetComponent<SkinnedMeshRenderer>() == null))
+                    if (t == null || (t.GetComponent<MeshRenderer>() == null && t.GetComponent<SkinnedMeshRenderer>() == null)) {
                         cacheManager.cache_FindAllPathsWhereMeshOrGameObjectHasOnlyOnAnimation.Remove(path);
+                    }
                 }
             }
             return cacheManager.cache_FindAllPathsWhereMeshOrGameObjectHasOnlyOnAnimation;
         }
+
 
         private HashSet<string> cache_TargetPathHasAnyMaterialSwap = null;
         private bool TargetPathHasAnyMaterialSwap(string path)
@@ -111,7 +113,8 @@ namespace WKVRCOptimizer.Core
                     cache_TargetPathHasAnyMaterialSwap.Add(newPath);
                 }
             }
-            return cache_TargetPathHasAnyMaterialSwap.Contains(path);
+            var result = cache_TargetPathHasAnyMaterialSwap.Contains(path);
+            return result;
         }
 
         private EditorCurveBinding FixAnimationBindingPath(EditorCurveBinding binding, ref bool changed)
@@ -155,7 +158,8 @@ namespace WKVRCOptimizer.Core
                 newBinding.type = modifiedPath.Item3;
                 changed = true;
             }
-            return FixAnimationBindingPath(newBinding, ref changed);
+            var result = FixAnimationBindingPath(newBinding, ref changed);
+            return result;
         }
 
         private AnimationCurve ReplaceZeroWithNaN(AnimationCurve curve)
@@ -239,14 +243,14 @@ namespace WKVRCOptimizer.Core
                     return true;
                 }
             }
-
             return false;
         }
         
         private AnimationClip FixAnimationClipPaths(AnimationClip clip)
         {
-            if (clip.name == "WKVRCOptimizer_MergedLayers_Constants")
+            if (clip.name == "WKVRCOptimizer_MergedLayers_Constants") {
                 return clip;
+            }
             var newClip = UnityEngine.Object.Instantiate(clip);
             newClip.ClearCurves();
             newClip.name = clip.name;
@@ -374,10 +378,12 @@ namespace WKVRCOptimizer.Core
 
         private Motion FixMotion(Motion motion, Dictionary<Motion, Motion> fixedMotions, string assetPath)
         {
-            if (motion == null)
+            if (motion == null) {
                 return null;
-            if (fixedMotions.TryGetValue(motion, out var fixedMotionValue))
+            }
+            if (fixedMotions.TryGetValue(motion, out var fixedMotionValue)) {
                 return fixedMotionValue;
+            }
             if (motion is BlendTree oldTree)
             {
                 var newTree = new BlendTree();
@@ -408,8 +414,9 @@ namespace WKVRCOptimizer.Core
         public void FixAllAnimationPaths()
         {
             var avDescriptor = root.GetComponent<VRCAvatarDescriptor>();
-            if (avDescriptor == null)
+            if (avDescriptor == null) {
                 return;
+            }
             
             int totalControllerCount = avDescriptor.baseAnimationLayers.Length + avDescriptor.specialAnimationLayers.Length;
             var layerCopyPaths = new string[totalControllerCount];
