@@ -248,7 +248,7 @@ namespace WKAvatarOptimizer.Core
                 AssetDatabase.AddObjectToAsset(tree, assetPath);
                 return tree;
             }
-            var motionTimeSampleCount = AvatarOptimizerSettings.MotionTimeApproximationSampleCount;
+            var motionTimeSampleCount = 5;
             var motionTimeSamplePoints = Enumerable.Range(0, motionTimeSampleCount).Select(x => (float)x / (motionTimeSampleCount - 1)).ToArray();
             Motion ConvertStateToMotion(AnimatorState s) {
                 if (s.motion is BlendTree tree) {

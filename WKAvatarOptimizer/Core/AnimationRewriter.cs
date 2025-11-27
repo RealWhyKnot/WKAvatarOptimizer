@@ -297,7 +297,7 @@ namespace WKAvatarOptimizer.Core
                     }
                 } else {
                     SetFloatCurve(newClip, fixedBinding, curve);
-                    if (fixedBinding.propertyName.StartsWithSimple($"material.WKVRCOptimizer") && main.MergeSkinnedMeshesWithNaNimation) {
+                    if (fixedBinding.propertyName.StartsWithSimple($"material.WKVRCOptimizer") && (main.settings.MergeSkinnedMeshesWithNaNimation != 0)) {
                         var otherBinding = fixedBinding;
                         var match = Regex.Match(fixedBinding.propertyName, @"material\.WKVRCOptimizer(.+)_ArrayIndex\d+(\.[a-z])?");
                         otherBinding.propertyName = $"material.{match.Groups[1].Value}{match.Groups[2].Value}";

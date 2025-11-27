@@ -1,8 +1,9 @@
 namespace WKAvatarOptimizer.Data
 {
-    [System.Serializable]
+    // [System.Serializable] // Removed to prevent serialization
     public class Settings
     {
+        // Defaults that work for "most" things, but will be overridden by smart logic
         public bool ApplyOnUpload = true;
         public bool WritePropertiesAsStaticValues = false;
         public bool MergeSkinnedMeshes = true;
@@ -10,8 +11,8 @@ namespace WKAvatarOptimizer.Data
         public int MergeSkinnedMeshesWithNaNimation = 0;
         public bool NaNimationAllow3BoneSkinning = false;
         public bool MergeSkinnedMeshesSeparatedByDefaultEnabledState = true;
-        public bool MergeStaticMeshesAsSkinned = false;
-        public bool MergeDifferentPropertyMaterials = false;
+        public bool MergeStaticMeshesAsSkinned = true;
+        public bool MergeDifferentPropertyMaterials = false; // Safer default
         public bool MergeSameDimensionTextures = false;
         public bool MergeMainTex = false;
         public bool OptimizeFXLayer = true;

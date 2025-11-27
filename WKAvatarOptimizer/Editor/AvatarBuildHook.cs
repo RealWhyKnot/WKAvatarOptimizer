@@ -33,29 +33,17 @@ namespace WKAvatarOptimizer.Editor
         {
             _Log($"OnPreprocessAvatar() called for avatar: {avatarGameObject.name}");
             var optimizer = avatarGameObject.GetComponent<AvatarOptimizer>();
-            if (optimizer == null && AvatarOptimizerSettings.DoOptimizeWithDefaultSettingsWhenNoComponent)
+            
+            if (optimizer == null)
             {
-                _Log($"No AvatarOptimizer component found on {avatarGameObject.name}. Adding one and applying default settings.");
-                optimizer = avatarGameObject.AddComponent<AvatarOptimizer>();
-                AvatarOptimizerSettings.ApplyDefaults(optimizer);
-                optimizer.ApplyAutoSettings();
-                optimizer.ApplyOnUpload = true;
-            }
-            if (optimizer == null || !optimizer.ApplyOnUpload)
-            {
-                _Log($"AvatarOptimizer is null or ApplyOnUpload is false for {avatarGameObject.name}. Skipping optimization.");
+                _Log($"AvatarOptimizer is null for {avatarGameObject.name}. Skipping optimization.");
                 return true;
             }
             try
             {
                 if (Application.isPlaying)
                 {
-                    if (!AvatarOptimizerSettings.DoOptimizeInPlayMode)
-                    {
-                        _Log($"Not optimizing in Play Mode as DoOptimizeInPlayMode is false.");
-                        return true;
-                    }
-                    else if (didRunInPlayMode)
+                    if (didRunInPlayMode)
                     {
                         Debug.LogWarning($"Only one avatar can be optimized per play mode session. Skipping optimization of {avatarGameObject.name}");
                         _Log($"Skipping optimization of {avatarGameObject.name} as an avatar was already optimized in this play mode session.");

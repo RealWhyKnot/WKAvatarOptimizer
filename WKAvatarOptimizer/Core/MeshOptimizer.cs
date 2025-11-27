@@ -335,7 +335,7 @@ namespace WKAvatarOptimizer.Core
             if (CanCombineRendererWithBasicMerge(list, candidate, true)) {
                 return true;
             }
-            if (!mainInstance.MergeSkinnedMeshesWithShaderToggle) {
+            if (mainInstance.settings.MergeSkinnedMeshesWithShaderToggle == 0) {
                 return false;
             }
             if (!IsShaderToggleCombinableRenderer(candidate)) {
@@ -380,7 +380,7 @@ namespace WKAvatarOptimizer.Core
         private Dictionary<string, bool> cache_CanUseNaNimationOnMesh = null;
         public bool CanUseNaNimationOnMesh(string meshPath)
         {
-            if (!mainInstance.MergeSkinnedMeshesWithNaNimation) {
+            if (mainInstance.settings.MergeSkinnedMeshesWithNaNimation == 0) {
                 return false;
             }
             if (cache_CanUseNaNimationOnMesh == null)
@@ -687,7 +687,7 @@ namespace WKAvatarOptimizer.Core
                     var targetBounds = combinableSkinnedMeshes[0].localBounds;
                     var targetRootBone = combinableSkinnedMeshes[0].rootBone == null ? combinableSkinnedMeshes[0].transform : combinableSkinnedMeshes[0].rootBone;
                     
-                    if (mainInstance.MergeSkinnedMeshesWithNaNimation && basicMergedMeshes.Count > 1)
+                    if ((mainInstance.settings.MergeSkinnedMeshesWithNaNimation != 0) && basicMergedMeshes.Count > 1)
                     {
                         var animator = root.GetComponent<Animator>();
                         if (animator != null && animator.isHuman)
@@ -759,7 +759,7 @@ namespace WKAvatarOptimizer.Core
                         targetBounds.Encapsulate(m.MultiplyPoint3x4(aabb.extents.Multiply(-1, -1, -1) + aabb.center));
                         Transform NaNimationBone = null;
                         int NaNimationBoneIndex = -1;
-                        if (mainInstance.MergeSkinnedMeshesWithNaNimation && basicMergedMeshes.Count > 1
+                        if ((mainInstance.settings.MergeSkinnedMeshesWithNaNimation != 0) && basicMergedMeshes.Count > 1
                                 && mainInstance.FindAllRendererTogglePaths().Contains(currentMeshPath)
                                 && this.CanUseNaNimationOnMesh(currentMeshPath))
                         {
@@ -779,7 +779,7 @@ namespace WKAvatarOptimizer.Core
                             NaNimationBone.localScale = Vector3.one;
                             NaNimationBoneIndex = AddNewBone(NaNimationBone, NaNimationBone.worldToLocalMatrix);
                             string key = "NaNimation";
-                            if (mainInstance.MergeSkinnedMeshesWithShaderToggle)
+                            if (mainInstance.settings.MergeSkinnedMeshesWithShaderToggle != 0)
                             {
                                 key += $";{blobMeshID};{newPath}";
                             }
@@ -792,7 +792,7 @@ namespace WKAvatarOptimizer.Core
                             targetBounds.Encapsulate(toLocal.MultiplyPoint3x4(avDescriptor.ViewPosition + Vector3.forward * 0.3f + Vector3.right * 0.2f));
                             targetBounds.Encapsulate(toLocal.MultiplyPoint3x4(avDescriptor.ViewPosition + Vector3.forward * 0.3f - Vector3.right * 0.2f));
                         }
-                        else if (basicMergedMeshes.Count > 1 && mainInstance.MergeSkinnedMeshesWithShaderToggle)
+                        else if (basicMergedMeshes.Count > 1 && (mainInstance.settings.MergeSkinnedMeshesWithShaderToggle != 0))
                         {
                             AddAnimationPathChange((currentMeshPath, "m_IsActive", typeof(GameObject)),
                                     (newPath, "material._IsActiveMesh" + blobMeshID, typeof(SkinnedMeshRenderer)));
@@ -1124,7 +1124,7 @@ namespace WKAvatarOptimizer.Core
                     }
 
                     var sameAnimatedProperties = GetSameAnimatedPropertiesOnMergedMesh(newPath);
-                    if (basicMergedMeshes.Count > 1 && mainInstance.MergeSkinnedMeshesWithShaderToggle) {
+                    if (basicMergedMeshes.Count > 1 && (mainInstance.settings.MergeSkinnedMeshesWithShaderToggle != 0)) {
                         var pathA = basicMergedMeshes[0][0].transform.GetPathToRoot(root.transform);
                         sameAnimatedProperties.UnionWith(FindSameAnimatedMaterialProperties(pathA, basicMergedMeshes[1][0].transform.GetPathToRoot(root.transform)));
                         for (int blobMeshID = 2; blobMeshID < basicMergedMeshes.Count; blobMeshID++) {
@@ -1132,7 +1132,7 @@ namespace WKAvatarOptimizer.Core
                         }
                     }
 
-                    for (int blobMeshID = 0; blobMeshID < basicMergedMeshes.Count && basicMergedMeshes.Count > 1 && mainInstance.MergeSkinnedMeshesWithShaderToggle; blobMeshID++) {
+                    for (int blobMeshID = 0; blobMeshID < basicMergedMeshes.Count && basicMergedMeshes.Count > 1 && (mainInstance.settings.MergeSkinnedMeshesWithShaderToggle != 0); blobMeshID++) {
                         var skinnedMesh = basicMergedMeshes[blobMeshID][0];
                         var oldPath = skinnedMesh.transform.GetPathToRoot(root.transform);
                         var properties = new MaterialPropertyBlock();

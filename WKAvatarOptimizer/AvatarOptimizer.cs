@@ -15,8 +15,9 @@ using VRC.SDK3.Avatars.Components;
 [AddComponentMenu("WK Avatar Optimizer")]
 public partial class AvatarOptimizer : MonoBehaviour, VRC.SDKBase.IEditorOnly
 {
-    public Settings settings = new Settings();
-    public bool DoAutoSettings = true;
+    public Settings settings;
+    public const long MaxPolyCountForAutoShaderToggle = 150000;
+
     public bool ShowExcludedTransforms = false;
     public List<Transform> ExcludeTransforms = new List<Transform>();
     public bool ShowMeshAndMaterialMergePreview = true;
@@ -42,6 +43,7 @@ public partial class AvatarOptimizer : MonoBehaviour, VRC.SDKBase.IEditorOnly
     public bool DebugShowAnimatedMaterialPropertyPaths = true;
     public bool DebugShowGameObjectsWithToggle = true;
     public bool DebugShowUnmovingBones = false;
+    public bool ProfileTimeUsed = false;
 
     public OptimizationContext context;
     private CacheManager cacheManager;
@@ -51,8 +53,68 @@ public partial class AvatarOptimizer : MonoBehaviour, VRC.SDKBase.IEditorOnly
     public MaterialOptimizer materialOptimizer;
     public AnimationRewriter animationRewriter;
 
+    private void ConfigureSettings()
+    {
+        if (settings == null) settings = new Settings();
+
+        // Smart Defaults
+        settings.ApplyOnUpload = true;
+        settings.MergeSkinnedMeshes = true;
+        settings.MergeStaticMeshesAsSkinned = true;
+        settings.MergeDifferentPropertyMaterials = HasCustomShaderSupport;
+        settings.MergeSameDimensionTextures = false;
+        settings.MergeMainTex = false;
+        settings.OptimizeFXLayer = true;
+        settings.CombineApproximateMotionTimeAnimations = false;
+        settings.DisablePhysBonesWhenUnused = true;
+        settings.MergeSameRatioBlendShapes = true;
+        settings.MMDCompatibility = true;
+        settings.DeleteUnusedComponents = true;
+        settings.UseRingFingerAsFootCollider = false;
+        settings.ProfileTimeUsed = ProfileTimeUsed;
+
+        // Smart Logic
+        settings.DeleteUnusedGameObjects = !UsesAnyLayerMasks() ? 1 : 0;
+
+        long polyCount = GetPolyCountRaw();
+        bool lowPoly = polyCount < MaxPolyCountForAutoShaderToggle;
+
+        settings.MergeSkinnedMeshesWithShaderToggle = (HasCustomShaderSupport && lowPoly) ? 1 : 0;
+        settings.MergeSkinnedMeshesWithNaNimation = lowPoly ? 1 : 0;
+
+        settings.NaNimationAllow3BoneSkinning = false;
+        settings.MergeSkinnedMeshesSeparatedByDefaultEnabledState = true;
+
+        bool mergeShaderToggle = settings.MergeSkinnedMeshesWithShaderToggle != 0;
+        bool mergeDiffMat = settings.MergeDifferentPropertyMaterials;
+
+        settings.WritePropertiesAsStaticValues = HasCustomShaderSupport && (mergeShaderToggle || mergeDiffMat);
+    }
+
+    private long GetPolyCountRaw()
+    {
+        long count = 0;
+        var exclusions = new HashSet<Transform>(ExcludeTransforms ?? new List<Transform>());
+        
+        var smrs = GetComponentsInChildren<SkinnedMeshRenderer>(true);
+        foreach (var smr in smrs) 
+        {
+            if (smr.sharedMesh != null && !exclusions.Contains(smr.transform)) 
+                count += smr.sharedMesh.triangles.Length / 3;
+        }
+        
+        var mfs = GetComponentsInChildren<MeshFilter>(true);
+        foreach (var mf in mfs) 
+        {
+            if (mf.sharedMesh != null && !exclusions.Contains(mf.transform)) 
+                count += mf.sharedMesh.triangles.Length / 3;
+        }
+        return count;
+    }
+
     public void EnsureInitializedForEditor()
     {
+        ConfigureSettings();
         if (context == null)
         {
             context = new OptimizationContext();
@@ -85,6 +147,7 @@ public partial class AvatarOptimizer : MonoBehaviour, VRC.SDKBase.IEditorOnly
 
     public void Optimize()
     {
+        ConfigureSettings();
         context = new OptimizationContext();
         cacheManager = new CacheManager(context, settings, gameObject);
         fxLayerOptimizer = new FXLayerOptimizer(context, settings, gameObject, this);
@@ -111,7 +174,7 @@ public partial class AvatarOptimizer : MonoBehaviour, VRC.SDKBase.IEditorOnly
             DisplayProgressBar("Removing duplicate materials", 0.05f);
             Profiler.StartNextSection("DeduplicateMaterials()");
             materialOptimizer.DeduplicateMaterials();
-            if (WritePropertiesAsStaticValues)
+            if (settings.WritePropertiesAsStaticValues)
             {
                 DisplayProgressBar("Parsing Shaders", 0.05f);
                 Profiler.StartNextSection("ParseAndCacheAllShaders()");
@@ -166,47 +229,7 @@ public partial class AvatarOptimizer : MonoBehaviour, VRC.SDKBase.IEditorOnly
     }
 
     public static bool HasCustomShaderSupport { get => EditorUserBuildSettings.activeBuildTarget == BuildTarget.StandaloneWindows64; }
-    public bool ApplyOnUpload { get { return settings.ApplyOnUpload; } set { settings.ApplyOnUpload = value; } }
-    public bool WritePropertiesAsStaticValues {
-        get { return HasCustomShaderSupport && (settings.WritePropertiesAsStaticValues || MergeSkinnedMeshesWithShaderToggle || settings.MergeDifferentPropertyMaterials); }
-        set { settings.WritePropertiesAsStaticValues = value; } }
-    public bool MergeSkinnedMeshes { get { return settings.MergeSkinnedMeshes; } set { settings.MergeSkinnedMeshes = value; } }
-    public bool MergeSkinnedMeshesWithShaderToggle {
-        get { return HasCustomShaderSupport && settings.MergeSkinnedMeshes && settings.MergeSkinnedMeshesWithShaderToggle != 0; }
-        set { settings.MergeSkinnedMeshesWithShaderToggle = value ? 1 : 0; } }
-    public bool MergeSkinnedMeshesWithNaNimation {
-        get { return settings.MergeSkinnedMeshes && settings.MergeSkinnedMeshesWithNaNimation != 0; }
-        set { settings.MergeSkinnedMeshesWithNaNimation = value ? 1 : 0; } }
-    public bool NaNimationAllow3BoneSkinning {
-        get { return MergeSkinnedMeshesWithNaNimation && settings.NaNimationAllow3BoneSkinning; }
-        set { settings.NaNimationAllow3BoneSkinning = value; } }
-    public bool MergeSkinnedMeshesSeparatedByDefaultEnabledState {
-        get { return MergeSkinnedMeshesWithNaNimation && settings.MergeSkinnedMeshesSeparatedByDefaultEnabledState; }
-        set { settings.MergeSkinnedMeshesSeparatedByDefaultEnabledState = value; } }
-    public bool MergeStaticMeshesAsSkinned {
-        get { return settings.MergeSkinnedMeshes && settings.MergeStaticMeshesAsSkinned; }
-        set { settings.MergeStaticMeshesAsSkinned = value; } }
-    public bool MergeDifferentPropertyMaterials {
-        get { return HasCustomShaderSupport && settings.MergeDifferentPropertyMaterials; }
-        set { settings.MergeDifferentPropertyMaterials = value; } }
-    public bool MergeSameDimensionTextures {
-        get { return settings.MergeDifferentPropertyMaterials && settings.MergeSameDimensionTextures; }
-        set { settings.MergeSameDimensionTextures = value; } }
-    public bool MergeMainTex {
-        get { return MergeSameDimensionTextures && settings.MergeMainTex; }
-        set { settings.MergeMainTex = value; } }
-    public bool MMDCompatibility { get { return settings.MMDCompatibility; } set { settings.MMDCompatibility = value; } }
-    public bool DeleteUnusedComponents { get { return settings.DeleteUnusedComponents; } set { settings.DeleteUnusedComponents = value; } }
-    public bool DeleteUnusedGameObjects { get { return settings.DeleteUnusedGameObjects != 0; } set { settings.DeleteUnusedGameObjects = value ? 1 : 0; } }
-    public bool OptimizeFXLayer { get { return settings.OptimizeFXLayer; } set { settings.OptimizeFXLayer = value; } }
-    public bool CombineApproximateMotionTimeAnimations {
-        get { return settings.OptimizeFXLayer && settings.CombineApproximateMotionTimeAnimations; }
-        set { settings.CombineApproximateMotionTimeAnimations = value; } }
-    public bool DisablePhysBonesWhenUnused { get { return settings.DisablePhysBonesWhenUnused; } set { settings.DisablePhysBonesWhenUnused = value; } }
-    public bool MergeSameRatioBlendShapes { get { return settings.MergeSameRatioBlendShapes; } set { settings.MergeSameRatioBlendShapes = value; } }
-    public bool UseRingFingerAsFootCollider { get { return settings.UseRingFingerAsFootCollider; } set { settings.UseRingFingerAsFootCollider = value; } }
-    public bool ProfileTimeUsed { get { return settings.ProfileTimeUsed; } set { settings.ProfileTimeUsed = value; } }
-
+    
     private static float progressBar = 0;
 
     public void DisplayProgressBar(string text)
