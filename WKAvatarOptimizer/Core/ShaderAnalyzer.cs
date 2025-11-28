@@ -3525,7 +3525,8 @@ namespace WKAvatarOptimizer.Core
                     }
                 }
                 output.Add(line);
-                if (line.Trim() == "CGPROGRAM" || line.Trim() == "HLSLPROGRAM")
+                string trimmedLine = line.Trim();
+                if (trimmedLine == "CGPROGRAM" || trimmedLine == "HLSLPROGRAM")
                 {
                     vertexInUv0Member = "texcoord";
                     texturesToCallSoTheSamplerDoesntDisappear.Clear();
@@ -3541,7 +3542,7 @@ namespace WKAvatarOptimizer.Core
                     {
                         knownDefines.Peek()[skippedShaderVariant] = (false, null);
                     }
-                    string endSymbol = line == "CGPROGRAM" ? "ENDCG" : "ENDHLSL";
+                    string endSymbol = trimmedLine == "CGPROGRAM" ? "ENDCG" : "ENDHLSL";
                     lineIndex++;
                     curlyBraceDepth = 0;
                     ParseCodeLinesRecursive(lines, ref lineIndex, endSymbol);
@@ -3549,7 +3550,7 @@ namespace WKAvatarOptimizer.Core
                     {
                         throw new ShaderAnalyzer.ParserException($"Unbalanced curly braces in {parsedShader.name} pass {passID}");
                     }
-                    var includeName = $"{sanitizedMaterialName}_{GetMD5Hash(output).Substring(0, 8)}" + (line == "CGPROGRAM" ? ".cginc" : ".hlsl");
+                    var includeName = $"{sanitizedMaterialName}_{GetMD5Hash(output).Substring(0, 8)}" + (trimmedLine == "CGPROGRAM" ? ".cginc" : ".hlsl");
                     outputIncludes.Add((includeName, output));
                     output = pragmaOutput;
                     output.Add($"#include \"{includeName}\"");

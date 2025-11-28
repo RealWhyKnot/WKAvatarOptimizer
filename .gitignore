@@ -10,6 +10,7 @@ obj/
 Dependencies/
 Reference/
 Temp/
+TrashBin/
 # Validates build is up to spec
 GEMINI.md
 Temp_Ref/

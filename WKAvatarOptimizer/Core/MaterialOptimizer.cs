@@ -796,7 +796,7 @@ namespace WKAvatarOptimizer.Core
                     List<Texture2D> list = null;
                     foreach (var subList in context.textureArrayLists)
                     {
-                        if (CanCombineTextures(subList[0], texArray[0]))
+                        if (texArray.All(tex => CanCombineTextures(subList[0], tex)))
                         {
                             list = subList;
                             break;
