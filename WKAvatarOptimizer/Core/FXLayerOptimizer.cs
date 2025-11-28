@@ -560,6 +560,7 @@ namespace WKAvatarOptimizer.Core
             for (int i = fxLayerLayers.Length - 1; i >= 0; i--)
             {
                 if (i <= 2) {
+                    // context.Log($"[FXLayer] Skipping analysis for reserved layer {i} ('{fxLayerLayers[i].name}').");
                     break;
                 }
                 var layer = fxLayerLayers[i];
@@ -575,6 +576,7 @@ namespace WKAvatarOptimizer.Core
                     if (isNotFirstLayerOrLastNonUselessLayerCanBeFirst)
                     {
                         uselessLayers.Add(i);
+                        context.Log($"[FXLayer] Layer {i} ('{layer.name}') is useless: Empty state machine.");
                     }
                     continue;
                 }
@@ -586,6 +588,7 @@ namespace WKAvatarOptimizer.Core
                 if (layer.defaultWeight == 0 && !isAffectedByLayerWeightControl.Contains(i))
                 {
                     uselessLayers.Add(i);
+                    context.Log($"[FXLayer] Layer {i} ('{layer.name}') is useless: Weight 0 and no layer weight control.");
                     continue;
                 }
                 var clips = stateMachine.EnumerateAllStates()
@@ -594,6 +597,7 @@ namespace WKAvatarOptimizer.Core
                 if (layerBindings.All(b => IsMaterialSwapBinding(b) ? ShouldRemoveMaterialSwapBinding(b) : !IsPossibleBinding(b)))
                 {
                     uselessLayers.Add(i);
+                    context.Log($"[FXLayer] Layer {i} ('{layer.name}') is useless: All bindings are invalid or removed material swaps.");
                     continue;
                 }
                 lastNonUselessLayer = i;

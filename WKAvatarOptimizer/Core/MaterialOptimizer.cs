@@ -732,6 +732,14 @@ namespace WKAvatarOptimizer.Core
             }
         }
 
+        private bool IsCrunched(TextureFormat format)
+        {
+            return format == TextureFormat.DXT1Crunched ||
+                   format == TextureFormat.DXT5Crunched ||
+                   format == TextureFormat.ETC_RGB4Crunched ||
+                   format == TextureFormat.ETC2_RGBA8Crunched;
+        }
+
         private void SearchForTextureArrayCreation(List<List<Material>> sources)
         {
             foreach (var source in sources)
@@ -764,6 +772,12 @@ namespace WKAvatarOptimizer.Core
                 }
                 foreach (var texArray in propertyTextureLists.Values.Where(a => a.Count > 1))
                 {
+                    if (IsCrunched(texArray[0].format))
+                    {
+                        context.Log($"[TextureArray] Skipping array creation for {texArray[0].name}: Crunched format {texArray[0].format} is not supported. Please disable Crunch Compression.");
+                        continue;
+                    }
+
                     List<Texture2D> list = null;
                     foreach (var subList in context.textureArrayLists)
                     {
@@ -777,6 +791,11 @@ namespace WKAvatarOptimizer.Core
                     {
                         list = new List<Texture2D>();
                         context.textureArrayLists.Add(list);
+                        context.Log($"[TextureArray] Created new array for {texArray[0].name} ({texArray[0].width}x{texArray[0].height} {texArray[0].format})");
+                    }
+                    else
+                    {
+                        context.Log($"[TextureArray] Merging {texArray[0].name} into existing array ({list.Count} existing textures)");
                     }
                     list.AddRange(texArray.Except(list));
                 }
@@ -1152,13 +1171,33 @@ namespace WKAvatarOptimizer.Core
                     List<string> failureReasons = new List<string>();
                     for (int i = 0; i < matched.Count; i++)
                     {
-                        if (CanCombineMaterialsWith(matched[i], candidate, out string failureReason))
+                        var leader = matched[i][0].material;
+                        
+                        if (CanCombineMaterialsWith(matched[i], candidate, out string failReason, false))
                         {
                             matched[i].Add(candidate);
                             foundMatch = true;
                             break;
                         }
-                        failureReasons.Add($"Group {i} ({matched[i][0].material.name}): {failureReason}");
+                        
+                        if (IsShaderSuperset(candidate.material.shader, leader.shader, out string promoReason))
+                        {
+                             if (CanCombineMaterialsWith(matched[i], candidate, out string failReason2, true))
+                             {
+                                 matched[i].Insert(0, candidate);
+                                 foundMatch = true;
+                                 context.Log($"[MaterialMerge] Promoted {candidate.material.name} to leader of Group {i} (Superset of previous leader {leader.name}).");
+                                 break;
+                             }
+                             else
+                             {
+                                 failureReasons.Add($"Group {i} (Promotion Attempt): {failReason2}");
+                             }
+                        }
+                        else
+                        {
+                             failureReasons.Add($"Group {i} ({leader.name}): {failReason} (And candidate is not a superset: {promoReason})");
+                        }
                     }
                     if (!foundMatch)
                     {
@@ -1173,7 +1212,60 @@ namespace WKAvatarOptimizer.Core
             return matched;
         }
 
-        private bool CanCombineMaterialsWith(List<MaterialSlot> list, MaterialSlot candidate, out string failureReason)
+        private bool IsShaderSuperset(Shader shaderSuper, Shader shaderSub, out string reason)
+        {
+            if (shaderSuper == shaderSub) { reason = ""; return true; }
+            if (shaderSuper == null || shaderSub == null) { reason = "Null shader"; return false; }
+
+            var parsedSuper = ShaderAnalyzer.Parse(shaderSuper);
+            var parsedSub = ShaderAnalyzer.Parse(shaderSub);
+
+            if (parsedSuper == null || !parsedSuper.parsedCorrectly) { reason = "Super Shader parse failed"; return false; }
+            if (parsedSub == null || !parsedSub.parsedCorrectly) { reason = "Sub Shader parse failed"; return false; }
+
+            foreach (var propSub in parsedSub.properties)
+            {
+                if (!parsedSuper.propertyTable.TryGetValue(propSub.name, out var propSuper))
+                {
+                    reason = $"Missing property {propSub.name} in superset";
+                    return false;
+                }
+                if (propSuper.type != propSub.type)
+                {
+                    reason = $"Property type mismatch {propSub.name} ({propSuper.type} vs {propSub.type})";
+                    return false;
+                }
+            }
+
+            foreach (var passSub in parsedSub.passes)
+            {
+                string lightModeSub = "";
+                if (passSub.tags.TryGetValue("LightMode", out var lm)) lightModeSub = lm;
+                
+                bool found = false;
+                foreach (var passSuper in parsedSuper.passes)
+                {
+                    string lightModeSuper = "";
+                    if (passSuper.tags.TryGetValue("LightMode", out var lmA)) lightModeSuper = lmA;
+                    
+                    if (lightModeSuper == lightModeSub)
+                    {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found)
+                {
+                    reason = $"Missing pass with LightMode '{lightModeSub}' in superset";
+                    return false;
+                }
+            }
+
+            reason = "";
+            return true;
+        }
+
+        private bool CanCombineMaterialsWith(List<MaterialSlot> list, MaterialSlot candidate, out string failureReason, bool skipShaderCheck = false)
         {
             failureReason = "";
             var candidateMat = candidate.material;
@@ -1183,10 +1275,14 @@ namespace WKAvatarOptimizer.Core
                 failureReason = "Material is null.";
                 return false;
             }
-            if (firstMat.shader != candidateMat.shader)
+            
+            if (!skipShaderCheck)
             {
-                failureReason = "Different shaders.";
-                return false;
+                if (!IsShaderSuperset(firstMat.shader, candidateMat.shader, out string reason))
+                {
+                    failureReason = $"Different shaders: {reason}";
+                    return false;
+                }
             }
             
             if (list.Any(slot => slot.GetTopology() != candidate.GetTopology()))

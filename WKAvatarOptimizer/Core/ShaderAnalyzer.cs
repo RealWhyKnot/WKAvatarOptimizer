@@ -2527,10 +2527,6 @@ namespace WKAvatarOptimizer.Core
                     varName = "_MainTexButNotQuiteSoThatUnityDoesntCry_ST";
                 output.Add("static " + type + " " + varName + " = " + value + ";");
             }
-            foreach (var keyword in setKeywords.Where(k => currentPass.shaderFeatureKeyWords.Contains(k)))
-            {
-                output.Add($"#define {keyword} 1");
-            }
             output.Add("uniform float WKVRCOptimizer_Zero; // Added by ShaderOptimizer for NaN checks");
             output.Add("static uint WKVRCOptimizer_MaterialID = 0;");
             output.Add("static uint WKVRCOptimizer_MeshID = 0;");
@@ -3066,6 +3062,20 @@ namespace WKAvatarOptimizer.Core
                 var line = source[sourceLineIndex];
                 if (line == endSymbol)
                     return;
+                
+                if (line == "CGPROGRAM" || line == "HLSLPROGRAM")
+                {
+                    output.Add(line);
+                    output.Add($"// Debug: Pass keywords: {string.Join(", ", currentPass.shaderFeatureKeyWords)}");
+                    output.Add($"// Debug: Active keywords: {string.Join(", ", setKeywords)}");
+                    foreach (var keyword in setKeywords)
+                    {
+                        output.Add($"#define {keyword} 1");
+                        knownDefines.Peek()[keyword] = (true, 1);
+                    }
+                    continue;
+                }
+
                 if (line[0] == '#')
                 {
                     if (line.StartsWithSimple("#include "))

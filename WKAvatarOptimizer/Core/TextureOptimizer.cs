@@ -92,22 +92,22 @@ namespace WKAvatarOptimizer.Core
             }
             else if (importer.DoesSourceTextureHaveAlpha())
             {
-                if (platformSettings.format != TextureImporterFormat.DXT5Crunched)
+                if (platformSettings.format != TextureImporterFormat.DXT5)
                 {
-                    platformSettings.format = TextureImporterFormat.DXT5Crunched;
-                    platformSettings.crunchedCompression = true;
+                    platformSettings.format = TextureImporterFormat.DXT5;
+                    platformSettings.crunchedCompression = false;
                     changed = true;
-                    changes.Add("Format->DXT5Crunched");
+                    changes.Add("Format->DXT5");
                 }
             }
             else
             {
-                if (platformSettings.format != TextureImporterFormat.DXT1Crunched)
+                if (platformSettings.format != TextureImporterFormat.DXT1)
                 {
-                    platformSettings.format = TextureImporterFormat.DXT1Crunched;
-                    platformSettings.crunchedCompression = true;
+                    platformSettings.format = TextureImporterFormat.DXT1;
+                    platformSettings.crunchedCompression = false;
                     changed = true;
-                    changes.Add("Format->DXT1Crunched");
+                    changes.Add("Format->DXT1");
                 }
             }
 
