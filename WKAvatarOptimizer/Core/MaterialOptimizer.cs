@@ -589,17 +589,20 @@ namespace WKAvatarOptimizer.Core
                 {
                     if (!source.HasProperty(prop) || texArrayProperties.Contains(prop))
                         continue;
-                    var tex = sources.Select(m => m.GetTexture(prop)).FirstOrDefault(t => t != null);
+                    var tex = sources.Select(m => m.HasProperty(prop) ? m.GetTexture(prop) : null).FirstOrDefault(t => t != null);
                     context.Log($"[MaterialOptimizer] Setting standard texture {prop} on {mat.name} to {tex?.name}");
                     mat.SetTexture(prop, tex);
-                    mat.SetTextureOffset(prop, source.GetTextureOffset(prop));
-                    mat.SetTextureScale(prop, source.GetTextureScale(prop));
+                    if (source.HasProperty(prop))
+                    {
+                        mat.SetTextureOffset(prop, source.GetTextureOffset(prop));
+                        mat.SetTextureScale(prop, source.GetTextureScale(prop));
+                    }
                 }
                 foreach (var prop in optimizedShader.tex3DCubeProperties)
                 {
                     if (!source.HasProperty(prop))
                         continue;
-                    var tex = sources.Select(m => m.GetTexture(prop)).FirstOrDefault(t => t != null);
+                    var tex = sources.Select(m => m.HasProperty(prop) ? m.GetTexture(prop) : null).FirstOrDefault(t => t != null);
                     mat.SetTexture(prop, tex);
                 }
                 foreach (var prop in optimizedShader.floatProperties)
@@ -820,15 +823,60 @@ namespace WKAvatarOptimizer.Core
         private Texture2DArray CombineTextures(List<Texture2D> textures)
         {
             Profiler.StartSection("CombineTextures()");
+            
+            int width = textures.Max(t => t.width);
+            int height = textures.Max(t => t.height);
             bool isLinear = IsTextureLinear(textures[0]);
-            var texArray = new Texture2DArray(textures[0].width, textures[0].height,
-                textures.Count, textures[0].format, true, isLinear);
+            
+            TextureFormat format = textures[0].format;
+            if (textures.Any(t => t.format == TextureFormat.DXT5 || t.format == TextureFormat.DXT5Crunched))
+            {
+                format = TextureFormat.DXT5;
+            }
+            else if (textures.Any(t => t.format == TextureFormat.BC5))
+            {
+                format = TextureFormat.BC5;
+            }
+
+            var texArray = new Texture2DArray(width, height,
+                textures.Count, format, true, isLinear);
             texArray.anisoLevel = textures[0].anisoLevel;
             texArray.wrapMode = textures[0].wrapMode;
             texArray.filterMode = textures[0].filterMode;
+
             for (int i = 0; i < textures.Count; i++)
             {
-                Graphics.CopyTexture(textures[i], 0, texArray, i);
+                var tex = textures[i];
+                bool exactFormatMatch = tex.format == format;
+                bool exactSizeMatch = tex.width == width && tex.height == height;
+
+                if (exactFormatMatch && exactSizeMatch)
+                {
+                    Graphics.CopyTexture(tex, 0, texArray, i);
+                }
+                else
+                {
+                    context.Log($"[MaterialOptimizer] Converting texture {tex.name} ({tex.format} {tex.width}x{tex.height}) to match array ({format} {width}x{height}).");
+                    
+                    RenderTexture tempRT = RenderTexture.GetTemporary(width, height, 0, RenderTextureFormat.ARGB32, isLinear ? RenderTextureReadWrite.Linear : RenderTextureReadWrite.sRGB);
+                    tempRT.filterMode = FilterMode.Bilinear;
+                    
+                    Graphics.Blit(tex, tempRT);
+                    
+                    Texture2D tempTex = new Texture2D(width, height, TextureFormat.RGBA32, true, isLinear);
+                    
+                    RenderTexture.active = tempRT;
+                    tempTex.ReadPixels(new Rect(0, 0, width, height), 0, 0);
+                    tempTex.Apply();
+                    RenderTexture.active = null;
+                    RenderTexture.ReleaseTemporary(tempRT);
+                    
+                    EditorUtility.CompressTexture(tempTex, format, TextureCompressionQuality.Best);
+                    
+                    Graphics.CopyTexture(tempTex, 0, texArray, i);
+                    
+                    UnityEngine.Object.DestroyImmediate(tempTex);
+                }
             }
             Profiler.EndSection();
             texArray.name = $"{texArray.width}x{texArray.height}_{texArray.format}_{(isLinear ? "linear" : "sRGB")}_{texArray.wrapMode}_{texArray.filterMode}_2DArray";
