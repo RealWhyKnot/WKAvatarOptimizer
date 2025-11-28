@@ -290,16 +290,21 @@ namespace WKAvatarOptimizer.Core
 
         public bool CanCombineRendererWith(List<Renderer> list, Renderer candidate)
         {
+            // settings.MergeSkinnedMeshes is assumed true
             if (list[0].gameObject.layer != candidate.gameObject.layer) {
+                context.Log($"[MeshMerge] Cannot combine {candidate.name} with group {list[0].name}: Different layers ({candidate.gameObject.layer} vs {list[0].gameObject.layer}).");
                 return false;
             }
             if (list[0].shadowCastingMode != candidate.shadowCastingMode) {
+                context.Log($"[MeshMerge] Cannot combine {candidate.name} with group {list[0].name}: Different shadow casting mode.");
                 return false;
             }
             if (list[0].receiveShadows != candidate.receiveShadows) {
+                context.Log($"[MeshMerge] Cannot combine {candidate.name} with group {list[0].name}: Different receive shadows setting.");
                 return false;
             }
             if (!RenderersHaveSameRootBoneScaleSign(list[0], candidate)) {
+                context.Log($"[MeshMerge] Cannot combine {candidate.name} with group {list[0].name}: Different root bone scale sign.");
                 return false;
             }
             bool OneOfParentsHasGameObjectToggleThatTheOthersArentChildrenOf(Transform t, string[] otherPaths)
@@ -313,25 +318,32 @@ namespace WKAvatarOptimizer.Core
                 return false;
             }
             if (OneOfParentsHasGameObjectToggleThatTheOthersArentChildrenOf(list[0].transform, new string[] { GetPathToRoot(candidate.transform.parent) })) {
+                context.Log($"[MeshMerge] Cannot combine {candidate.name} with group {list[0].name}: Group member has parent toggle that candidate is not under.");
                 return false;
             }
             if (OneOfParentsHasGameObjectToggleThatTheOthersArentChildrenOf(candidate.transform, list.Select(r => GetPathToRoot(r.transform.parent)).ToArray())) {
+                context.Log($"[MeshMerge] Cannot combine {candidate.name} with group {list[0].name}: Candidate has parent toggle that group members are not under.");
                 return false;
             }
-
+            
+            // settings.MergeSkinnedMeshesSeparatedByDefaultEnabledState is assumed true
             bool candidateDefaultEnabledState = GetRendererDefaultEnabledState(candidate);
             if (list.Any(r => GetRendererDefaultEnabledState(r) != candidateDefaultEnabledState)) {
+                context.Log($"[MeshMerge] Cannot combine {candidate.name} with group {list[0].name}: Different default enabled state.");
                 return false;
             }
             
             if (CanCombineRendererWithBasicMerge(list, candidate, true)) {
                 return true;
             }
-
+            
+            // settings.MergeSkinnedMeshesWithShaderToggle is assumed != 0 (true)
             if (!IsShaderToggleCombinableRenderer(candidate)) {
+                context.Log($"[MeshMerge] Cannot combine {candidate.name} with group {list[0].name}: Candidate is not shader-toggle compatible (e.g. non-mergeable materials).");
                 return false;
             }
             if (list.Any(r => !IsShaderToggleCombinableRenderer(r))) {
+                context.Log($"[MeshMerge] Cannot combine {candidate.name} with group {list[0].name}: Group member is not shader-toggle compatible.");
                 return false;
             }
             return true;
@@ -361,6 +373,11 @@ namespace WKAvatarOptimizer.Core
                 }
                 if (!merged)
                 {
+                    if (result.Count > 0) {
+                        context.Log($"[MeshMerge] Starting new merge group for {candidate.name}. (Candidate failed to merge with any of the {result.Count} existing groups).");
+                    } else {
+                        context.Log($"[MeshMerge] Starting first merge group with {candidate.name}.");
+                    }
                     result.Add(new List<Renderer> { candidate });
                 }
             }

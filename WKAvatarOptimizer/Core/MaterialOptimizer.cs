@@ -700,6 +700,147 @@ namespace WKAvatarOptimizer.Core
             }
         }
 
+        private string GetPathToRoot(Component c)
+        {
+            return c.transform.GetPathToRoot(gameObject.transform);
+        }
+
+        public void CreateTextureArrays()
+        {
+            context.textureArrayLists.Clear();
+            context.textureArrays.Clear();
+
+            var skinnedMeshRenderers = gameObject.GetComponentsInChildren<SkinnedMeshRenderer>(true);
+            foreach (var meshRenderer in skinnedMeshRenderers)
+            {
+                var mesh = meshRenderer.sharedMesh;
+
+                if (mesh == null)
+                    continue;
+
+                var matched = FindAllMergeAbleMaterials(new [] { meshRenderer });
+                
+                var matchedMaterials = matched.Select(list => list.Select(slot => slot.material).ToList()).ToList();
+                var uniqueMatchedMaterials = matchedMaterials.Select(mm => mm.Distinct().ToList()).ToList();
+
+                SearchForTextureArrayCreation(uniqueMatchedMaterials);
+            }
+
+            foreach (var textureList in context.textureArrayLists)
+            {
+                context.textureArrays.Add(CombineTextures(textureList));
+            }
+        }
+
+        private void SearchForTextureArrayCreation(List<List<Material>> sources)
+        {
+            foreach (var source in sources)
+            {
+                var parsedShader = ShaderAnalyzer.Parse(source[0]?.shader);
+                if (parsedShader == null || !parsedShader.parsedCorrectly)
+                    continue;
+                var propertyTextureLists = new Dictionary<string, List<Texture2D>>();
+                foreach (var mat in source)
+                {
+                    foreach (var prop in parsedShader.properties)
+                    {
+                        if (!mat.HasProperty(prop.name))
+                            continue;
+                        if (prop.type != ParsedShader.Property.Type.Texture2D)
+                            continue;
+                        if (!propertyTextureLists.TryGetValue(prop.name, out var textureArray))
+                        {
+                            textureArray = new List<Texture2D>();
+                            propertyTextureLists[prop.name] = textureArray;
+                        }
+                        var tex = mat.GetTexture(prop.name);
+                        var tex2D = tex as Texture2D;
+                        int index = textureArray.IndexOf(tex2D);
+                        if (index == -1 && tex2D != null)
+                        {
+                            textureArray.Add(tex2D);
+                        }
+                    }
+                }
+                foreach (var texArray in propertyTextureLists.Values.Where(a => a.Count > 1))
+                {
+                    List<Texture2D> list = null;
+                    foreach (var subList in context.textureArrayLists)
+                    {
+                        if (CanCombineTextures(subList[0], texArray[0]))
+                        {
+                            list = subList;
+                            break;
+                        }
+                    }
+                    if (list == null)
+                    {
+                        list = new List<Texture2D>();
+                        context.textureArrayLists.Add(list);
+                    }
+                    list.AddRange(texArray.Except(list));
+                }
+            }
+        }
+
+        private Texture2DArray CombineTextures(List<Texture2D> textures)
+        {
+            Profiler.StartSection("CombineTextures()");
+            bool isLinear = IsTextureLinear(textures[0]);
+            var texArray = new Texture2DArray(textures[0].width, textures[0].height,
+                textures.Count, textures[0].format, textures[0].mipmapCount > 1, isLinear);
+            texArray.anisoLevel = textures[0].anisoLevel;
+            texArray.wrapMode = textures[0].wrapMode;
+            texArray.filterMode = textures[0].filterMode;
+            for (int i = 0; i < textures.Count; i++)
+            {
+                Graphics.CopyTexture(textures[i], 0, texArray, i);
+            }
+            Profiler.EndSection();
+            texArray.name = $"{texArray.width}x{texArray.height}_{texArray.format}_{(isLinear ? "linear" : "sRGB")}_{texArray.wrapMode}_{texArray.filterMode}_2DArray";
+            AssetManager.CreateUniqueAsset(context, texArray, $"{texArray.name}.asset");
+            return texArray;
+        }
+
+        private bool IsTextureLinear(Texture2D tex)
+        {
+            if (tex == null)
+                return false;
+            var importer = AssetImporter.GetAtPath(AssetDatabase.GetAssetPath(tex)) as TextureImporter;
+            if (importer == null)
+                return false;
+            return importer.sRGBTexture == false;
+        }
+
+        private bool CanCombineTextures(Texture a, Texture b)
+        {
+            if (a == b)
+                return true;
+            if (a == null && b is Texture2D)
+                return true;
+            if (a is Texture2D && b == null)
+                return true;
+            if (!(a is Texture2D) || !(b is Texture2D))
+                return false;
+            if (a.texelSize != b.texelSize)
+                return false;
+            var a2D = a as Texture2D;
+            var b2D = b as Texture2D;
+            if (a2D.format != b2D.format)
+                return false;
+            if (a2D.format == TextureFormat.DXT1Crunched || a2D.format == TextureFormat.DXT5Crunched)
+                return false;
+            if (a2D.mipmapCount != b2D.mipmapCount)
+                return false;
+            if (a2D.filterMode != b2D.filterMode)
+                return false;
+            if (a2D.wrapMode != b2D.wrapMode)
+                return false;
+            if (IsTextureLinear(a2D) != IsTextureLinear(b2D))
+                return false;
+            return true;
+        }
+
         public void CombineAndOptimizeMaterials()
         {
             var exclusions = optimizer.componentOptimizer.GetAllExcludedTransforms();
@@ -1008,17 +1149,23 @@ namespace WKAvatarOptimizer.Core
                 foreach (var candidate in MaterialSlot.GetAllSlotsFrom(renderer))
                 {
                     bool foundMatch = false;
+                    List<string> failureReasons = new List<string>();
                     for (int i = 0; i < matched.Count; i++)
                     {
-                        if (CanCombineMaterialsWith(matched[i], candidate))
+                        if (CanCombineMaterialsWith(matched[i], candidate, out string failureReason))
                         {
                             matched[i].Add(candidate);
                             foundMatch = true;
                             break;
                         }
+                        failureReasons.Add($"Group {i} ({matched[i][0].material.name}): {failureReason}");
                     }
                     if (!foundMatch)
                     {
+                        if (matched.Count > 0)
+                        {
+                            context.Log($"[MaterialMerge] Started new merge group for {candidate.material.name} on {candidate.renderer.name}. Failed to merge with {matched.Count} existing groups:\n  " + string.Join("\n  ", failureReasons));
+                        }
                         matched.Add(new List<MaterialSlot> { candidate });
                     }
                 }
@@ -1026,13 +1173,112 @@ namespace WKAvatarOptimizer.Core
             return matched;
         }
 
-        private bool CanCombineMaterialsWith(List<MaterialSlot> list, MaterialSlot candidate)
+        private bool CanCombineMaterialsWith(List<MaterialSlot> list, MaterialSlot candidate, out string failureReason)
         {
-            if (list[0].material != candidate.material)
+            failureReason = "";
+            var candidateMat = candidate.material;
+            var firstMat = list[0].material;
+            if (candidateMat == null || firstMat == null)
+            {
+                failureReason = "Material is null.";
                 return false;
-            if (optimizer.meshOptimizer.GetParticleSystemsUsingRenderer(candidate.renderer).Any(ps => ps.shape.useMeshMaterialIndex && ps.shape.meshMaterialIndex == candidate.index))
+            }
+            if (firstMat.shader != candidateMat.shader)
+            {
+                failureReason = "Different shaders.";
                 return false;
+            }
             
+            if (list.Any(slot => slot.GetTopology() != candidate.GetTopology()))
+            {
+                failureReason = "Different topology.";
+                return false;
+            }
+
+            bool IsAffectedByMaterialSwap(MaterialSlot slot) =>
+                context.slotSwapMaterials.ContainsKey((GetPathToRoot(slot.renderer), slot.index))
+                || (context.materialSlotRemap.TryGetValue((GetPathToRoot(slot.renderer), slot.index), out var remap) && context.slotSwapMaterials.ContainsKey(remap));
+            
+            if (IsAffectedByMaterialSwap(list[0]) || IsAffectedByMaterialSwap(candidate))
+            {
+                failureReason = "Affected by material swap.";
+                return false;
+            }
+
+            if (optimizer.meshOptimizer.GetParticleSystemsUsingRenderer(candidate.renderer).Any(ps => ps.shape.useMeshMaterialIndex && ps.shape.meshMaterialIndex == candidate.index))
+            {
+                failureReason = "Particle system dependency.";
+                return false;
+            }
+
+            var listMaterials = list.Select(slot => slot.material).ToArray();
+            var materialComparer = new MaterialAssetComparer();
+            bool allTheSameAsCandidate = listMaterials.All(mat => materialComparer.Equals(mat, candidateMat));
+            
+            if (list.Count > 1 && listMaterials.Any(mat => mat == candidateMat))
+                return true;
+
+            for (int j = 0; j < firstMat.shader.passCount; j++)
+            {
+                var lightModeValue = firstMat.shader.FindPassTagValue(j, new ShaderTagId("LightMode"));
+                if (!string.IsNullOrEmpty(lightModeValue.name))
+                {
+                    if (firstMat.GetShaderPassEnabled(lightModeValue.name) != candidateMat.GetShaderPassEnabled(lightModeValue.name))
+                    {
+                        failureReason = "Shader pass enabled mismatch.";
+                        return false;
+                    }
+                }
+            }
+
+            var parsedShader = ShaderAnalyzer.Parse(candidateMat.shader);
+            if (parsedShader == null || parsedShader.parsedCorrectly == false)
+            {
+                failureReason = "Shader parse failed.";
+                return false;
+            }
+
+            if (firstMat.renderQueue != candidateMat.renderQueue)
+            {
+                failureReason = "Different render queue.";
+                return false;
+            }
+            if (firstMat.enableInstancing != candidateMat.enableInstancing)
+            {
+                failureReason = "Different instancing settings.";
+                return false;
+            }
+
+            bool hasAnyMaterialVariant = listMaterials.Any(m => m.isVariant) || candidateMat.isVariant;
+            if (!hasAnyMaterialVariant && firstMat.GetTag("VRCFallback", false, "None") != candidateMat.GetTag("VRCFallback", false, "None"))
+            {
+                failureReason = "Different VRCFallback.";
+                return false;
+            }
+
+            foreach (var pass in parsedShader.passes)
+            {
+                if (pass.vertex == null || pass.fragment == null)
+                {
+                     failureReason = "Missing vertex or fragment shader in pass.";
+                     return false;
+                }
+                if (pass.hull != null || pass.domain != null)
+                {
+                     failureReason = "Tessellation shaders not supported.";
+                     return false;
+                }
+            }
+
+            foreach (var keyword in parsedShader.shaderFeatureKeyWords)
+            {
+                if (firstMat.IsKeywordEnabled(keyword) ^ candidateMat.IsKeywordEnabled(keyword))
+                {
+                    failureReason = $"Mismatched keyword {keyword}.";
+                    return false;
+                }
+            }
+
             return true;
         }
     }

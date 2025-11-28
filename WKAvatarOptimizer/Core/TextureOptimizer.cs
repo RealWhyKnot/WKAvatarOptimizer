@@ -59,24 +59,27 @@ namespace WKAvatarOptimizer.Core
             if (importer == null) return;
 
             bool changed = false;
+            List<string> changes = new List<string>();
 
             if (!importer.mipmapEnabled)
             {
                 importer.mipmapEnabled = true;
                 changed = true;
+                changes.Add("Enabled Mipmaps");
             }
 
             if (importer.mipmapFilter != TextureImporterMipFilter.KaiserFilter)
             {
                 importer.mipmapFilter = TextureImporterMipFilter.KaiserFilter;
                 changed = true;
+                changes.Add("Set Kaiser Filter");
             }
 
             var platformSettings = importer.GetPlatformTextureSettings("Standalone");
             var originalSettings = platformSettings;
 
             platformSettings.overridden = true;
-            platformSettings.compressionQuality = 100;
+            platformSettings.compressionQuality = 100; 
 
             if (importer.textureType == TextureImporterType.NormalMap)
             {
@@ -84,6 +87,7 @@ namespace WKAvatarOptimizer.Core
                 {
                     platformSettings.format = TextureImporterFormat.BC5;
                     changed = true;
+                    changes.Add("Format->BC5");
                 }
             }
             else if (importer.DoesSourceTextureHaveAlpha())
@@ -93,6 +97,7 @@ namespace WKAvatarOptimizer.Core
                     platformSettings.format = TextureImporterFormat.DXT5Crunched;
                     platformSettings.crunchedCompression = true;
                     changed = true;
+                    changes.Add("Format->DXT5Crunched");
                 }
             }
             else
@@ -102,12 +107,13 @@ namespace WKAvatarOptimizer.Core
                     platformSettings.format = TextureImporterFormat.DXT1Crunched;
                     platformSettings.crunchedCompression = true;
                     changed = true;
+                    changes.Add("Format->DXT1Crunched");
                 }
             }
 
             if (changed)
             {
-                context.Log($"Optimizing texture {index}/{total}: {tex.name}");
+                context.Log($"Optimizing texture {index}/{total}: {tex.name} ({string.Join(", ", changes)})");
                 importer.SetPlatformTextureSettings(platformSettings);
                 importer.SaveAndReimport();
             }

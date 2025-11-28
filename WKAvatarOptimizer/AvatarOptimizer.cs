@@ -160,6 +160,9 @@ public partial class AvatarOptimizer : MonoBehaviour, VRC.SDKBase.IEditorOnly
             DisplayProgressBar("Combining meshes", 0.5f);
             CombineSkinnedMeshes();
 
+            Profiler.StartNextSection("CreateTextureArrays()");
+            materialOptimizer.CreateTextureArrays();
+
             Profiler.StartNextSection("CombineAndOptimizeMaterials()");
             DisplayProgressBar("Optimizing materials", 0.6f);
             materialOptimizer.CombineAndOptimizeMaterials();
@@ -182,7 +185,21 @@ public partial class AvatarOptimizer : MonoBehaviour, VRC.SDKBase.IEditorOnly
 
             if (context.optimizationLogs.Count > 0)
             {
-                Debug.Log("[WKAvatarOptimizer] Optimization Report:\n" + string.Join("\n", context.optimizationLogs));
+                string logContent = string.Join("\n", context.optimizationLogs);
+                Debug.Log("[WKAvatarOptimizer] Optimization Report:\n" + logContent);
+                try
+                {
+                    if (!System.IO.Directory.Exists(context.trashBinPath))
+                    {
+                        System.IO.Directory.CreateDirectory(context.trashBinPath);
+                    }
+                    string logPath = System.IO.Path.Combine(context.trashBinPath, "WKAvatarOptimizer_Log.txt");
+                    System.IO.File.WriteAllText(logPath, logContent);
+                }
+                catch (System.Exception e)
+                {
+                    Debug.LogError($"[WKAvatarOptimizer] Failed to write log file: {e.Message}");
+                }
             }
         }
         catch (System.Exception e)
