@@ -96,14 +96,39 @@ The optimizer runs a sequence of automated passes on your avatar during the buil
 
 ## Known Issues & Debugging
 
-### Invisible Meshes (Current Priority)
-**Status:** Under Investigation / Fix Identified
-**Symptoms:** Certain meshes (especially those using complex shaders like Poiyomi) become invisible or pink after optimization.
-**Root Cause:** 
-*   **Hidden Pragmas:** Complex shaders often define their keywords (`#pragma shader_feature`) inside nested `#include` files (e.g., `.cginc`).
-*   **Parser Limitation:** The current `ShaderAnalyzer` parses the main shader file but does not recursively scan `#include` files for keyword definitions.
-*   **Incorrect Filtering:** The `MaterialOptimizer` currently filters the material's active keywords against the list of keywords *found* by the parser. Since the parser misses the hidden ones, valid keywords are discarded.
-*   **Broken Logic:** The `ShaderOptimizer` generates a static shader. It expects to receive a list of keywords to "bake" (inject as `#define KEYWORD 1`). Because the list is empty (due to the filtering above), the defines are missing. Global conditional blocks (like `#ifdef POI_FEATURE` around structs) evaluate to `false`, causing struct mismatches between the Vertex and Fragment shaders, leading to invisible geometry.
+### Invisible Meshes (Current Priority - Debugging Grayscale Textures)
+**Status:** Ongoing Investigation
+**Symptoms:**
+*   **Initial:** Meshes are completely invisible after optimization.
+*   **After Fix 1 (Keyword Injection):** Meshes become visible (can be toggled on/off) but their textures appear grayscale or broken, particularly when in Play Mode in Unity. Exiting Play Mode shows textures correctly.
 
-**Planned Fix:**
-Update `MaterialOptimizer.cs` to stop filtering keywords based on the parser's findings. It should pass **all** enabled keywords from the source material to the `ShaderOptimizer`. This forces the optimizer to define every active keyword, ensuring that hidden `#ifdef` checks in included files resolve correctly.
+**Root Causes & Diagnosis:**
+
+1.  **Invisible Meshes (Addressed):**
+    *   **Original Problem:** Complex shaders (like Poiyomi) often define keywords (`#pragma shader_feature`) within nested `#include` files. The `ShaderAnalyzer` historically missed these, leading to `MaterialOptimizer` filtering out valid keywords. Consequently, `ShaderOptimizer` received an empty keyword list and failed to inject `#define` statements into the generated shader. This resulted in conditional code blocks (`#ifdef`) evaluating incorrectly and breaking shader logic, causing geometry to be invisible.
+    *   **Fix Implemented:** `MaterialOptimizer.cs` was updated to pass *all* enabled keywords from the material to the `ShaderOptimizer`, ensuring that `#define KEYWORD 1` statements are always injected for active keywords, regardless of whether `ShaderAnalyzer` initially detected them. This should resolve the core "invisibility" issue.
+
+2.  **Grayscale/Broken Textures in Play Mode (Under Investigation):**
+    *   **Symptom Detail:** This issue specifically manifests in Play Mode. Textures appear desaturated or incorrect, but render correctly outside of Play Mode. This strongly suggests a runtime material/shader property issue or an interaction with Unity's internal rendering pipeline.
+    *   **Initial Analysis:**
+        *   **Texture Arrays:** The optimizer aggressively converts textures into `Texture2DArray`s for merging. If `_MainTex` (or other textures) are grayscale, it could be due to:
+            *   Incorrect binding of the `Texture2DArray` to the material.
+            *   Wrong texture format or sRGB settings for the array.
+            *   Issues with UV coordinates not correctly sampling the array slice.
+            *   Shader sampling logic for the `Texture2DArray` might be flawed during runtime.
+        *   **Mipmap Generation:** Lack of proper mipmaps, or mipmap generation issues, can sometimes cause blurry or desaturated textures at runtime, especially at different viewing distances.
+    *   **Fixes Implemented (for investigation):**
+        *   **Force Mipmaps:** `MaterialOptimizer.cs` was updated to explicitly force mipmap generation for all `Texture2DArray`s created, regardless of the source texture's `mipmapCount`.
+        *   **Enhanced Logging:**
+            *   `MaterialOptimizer.cs` now logs the *exact* list of keywords being collected from the material (`shaderKeywords`).
+            *   `MaterialOptimizer.cs` now logs when a texture is added to the `texturesToMerge` list, confirming its eligibility for `Texture2DArray` conversion.
+            *   `TextureOptimizer.cs` now logs the original `mipmapEnabled` state, `mipmapCount`, and `format` for each texture processed.
+            *   (Previous attempt to add debug logs to `ShaderOptimizer.cs` about injected keywords was seemingly not reflected in previous `TrashBin` output, possibly due to build mismatch).
+
+**Next Steps for Debugging:**
+The provided Unity Editor log (`TrashBin/output.txt`, if available) should be meticulously checked for any shader compilation warnings or errors, or runtime messages related to materials or textures. The new, detailed logs generated by `WKAvatarOptimizer_Log.txt` must be examined to verify:
+*   That the correct keywords are indeed being passed and injected into the generated shader.
+*   That textures intended for `Texture2DArray`s are correctly identified and processed.
+*   That mipmaps are being generated as expected.
+
+Further investigation will focus on the interaction between the generated `Texture2DArray`s, material properties, and runtime shader behavior, especially regarding `sRGB` conversion and texture sampling.

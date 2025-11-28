@@ -360,11 +360,15 @@ namespace WKAvatarOptimizer.Core
                                     int texArrayIndex = context.textureArrayLists.FindIndex(l => l.Contains(tex2D));
                                     if (texArrayIndex != -1)
                                     {
-                                        index = context.textureArrayLists[texArrayIndex].IndexOf(tex2D);
-                                        texturesToMerge[i].Add(prop.name);
-                                        propertyTextureArrayIndex[i][prop.name] = texArrayIndex;
-                                    }
-                                }
+                                                                            index = context.textureArrayLists[texArrayIndex].IndexOf(tex2D);
+                                                                            texturesToMerge[i].Add(prop.name);
+                                                                            context.Log($"[MaterialOptimizer] Material {source[0].name}: Added texture {prop.name} to texturesToMerge (texArrayIndex: {texArrayIndex}, index: {index})");
+                                                                            propertyTextureArrayIndex[i][prop.name] = texArrayIndex;
+                                                                        }
+                                                                        else
+                                                                        {
+                                                                            context.Log($"[MaterialOptimizer] Material {source[0].name}: Texture {prop.name} ({tex2D?.name}) not found in texture arrays. Keeping as standard texture.");
+                                                                        }                                }
                                 arrayPropertyValues[i]["arrayIndex" + prop.name].values.Add("" + index);
                                 arrayPropertyValues[i]["shouldSample" + prop.name].values.Add((tex != null).ToString().ToLowerInvariant());
                                 if (!arrayPropertyValues[i].TryGetValue(prop.name + "_TexelSize", out propertyArray))
@@ -452,8 +456,8 @@ namespace WKAvatarOptimizer.Core
                     }
                 }
 
-                setShaderKeywords[i] = parsedShader[i].shaderFeatureKeyWords.Where(k => source[0].IsKeywordEnabled(k)).ToList();
-            }
+                                    setShaderKeywords[i] = source[0].shaderKeywords.ToList();
+                    context.Log($"[MaterialOptimizer] Material {source[0].name}: Collected {setShaderKeywords[i].Count} keywords: {string.Join(", ", setShaderKeywords[i])}");            }
 
             var optimizedShader = new ShaderOptimizer.OptimizedShader[sources.Count];
             var basicMergedMeshPaths = allOriginalMeshPaths?.Select(list => string.Join(", ", list)).ToList();
@@ -548,7 +552,9 @@ namespace WKAvatarOptimizer.Core
                 var optimizedShader = entry.optimizerResult;
                 optimizer.DisplayProgressBar($"Loading optimized shader {mat.name} {0.7f + 0.2f * (i / (float)context.optimizedMaterials.Count)}");
                 Profiler.StartSection("AssetDatabase.LoadAssetAtPath<Shader>()");
-                var shader = AssetDatabase.LoadAssetAtPath<Shader>($"{context.trashBinPath}{optimizedShader.name}.shader");
+                string shaderPath = $"{context.trashBinPath}{optimizedShader.name}.shader";
+                context.Log($"[MaterialOptimizer] Loading shader for {mat.name} from: {shaderPath}");
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>(shaderPath);
                 Profiler.StartNextSection("mat.shader = shader");
                 mat.shader = shader;
                 mat.renderQueue = source.renderQueue;
@@ -572,6 +578,7 @@ namespace WKAvatarOptimizer.Core
                         {
                             texArrayName = "_MainTexButNotQuiteSoThatUnityDoesntCry";
                         }
+                        context.Log($"[MaterialOptimizer] Assigning TextureArray '{texArray.array.name}' to material '{mat.name}' property '{texArrayName}'");
                         mat.SetTexture(texArrayName, texArray.array);
                         mat.SetTextureOffset(texArrayName, source.GetTextureOffset(texArray.name));
                         mat.SetTextureScale(texArrayName, source.GetTextureScale(texArray.name));
@@ -583,6 +590,7 @@ namespace WKAvatarOptimizer.Core
                     if (!source.HasProperty(prop) || texArrayProperties.Contains(prop))
                         continue;
                     var tex = sources.Select(m => m.GetTexture(prop)).FirstOrDefault(t => t != null);
+                    context.Log($"[MaterialOptimizer] Setting standard texture {prop} on {mat.name} to {tex?.name}");
                     mat.SetTexture(prop, tex);
                     mat.SetTextureOffset(prop, source.GetTextureOffset(prop));
                     mat.SetTextureScale(prop, source.GetTextureScale(prop));
@@ -807,7 +815,7 @@ namespace WKAvatarOptimizer.Core
             Profiler.StartSection("CombineTextures()");
             bool isLinear = IsTextureLinear(textures[0]);
             var texArray = new Texture2DArray(textures[0].width, textures[0].height,
-                textures.Count, textures[0].format, textures[0].mipmapCount > 1, isLinear);
+                textures.Count, textures[0].format, true, isLinear);
             texArray.anisoLevel = textures[0].anisoLevel;
             texArray.wrapMode = textures[0].wrapMode;
             texArray.filterMode = textures[0].filterMode;
@@ -817,6 +825,7 @@ namespace WKAvatarOptimizer.Core
             }
             Profiler.EndSection();
             texArray.name = $"{texArray.width}x{texArray.height}_{texArray.format}_{(isLinear ? "linear" : "sRGB")}_{texArray.wrapMode}_{texArray.filterMode}_2DArray";
+            context.Log($"[MaterialOptimizer] Created Texture2DArray: {texArray.name} (Depth: {texArray.depth}, Mipmap: {texArray.mipmapCount > 1})");
             AssetManager.CreateUniqueAsset(context, texArray, $"{texArray.name}.asset");
             return texArray;
         }

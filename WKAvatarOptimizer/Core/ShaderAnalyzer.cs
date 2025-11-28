@@ -3593,6 +3593,10 @@ namespace WKAvatarOptimizer.Core
                 }
                 propertyBlock.Add($"{tagString}{prop.name}(\"{prop.name}\", {prop.type}) = {prop.defaultValue}");
                 optimizedShader.AddProperty(prop.name, prop.type);
+                if (prop.type.Contains("2DArray"))
+                {
+                     output.Add($"// Debug: Added Property {prop.name} as {prop.type}");
+                }
             }
             output.InsertRange(propertyBlockInsertionIndex, propertyBlock);
             var shaderHash = GetMD5Hash(output);
