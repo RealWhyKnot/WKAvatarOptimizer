@@ -15,7 +15,6 @@ using VRC.SDK3.Avatars.Components;
 [AddComponentMenu("WhyKnot's Avatar Optimizer")]
 public partial class AvatarOptimizer : MonoBehaviour, VRC.SDKBase.IEditorOnly
 {
-    public Settings settings;
     public const long MaxPolyCountForAutoShaderToggle = 150000;
 
     public bool ShowExcludedTransforms = false;
@@ -47,47 +46,12 @@ public partial class AvatarOptimizer : MonoBehaviour, VRC.SDKBase.IEditorOnly
 
     public OptimizationContext context;
     private CacheManager cacheManager;
-    public MeshOptimizer meshOptimizer;
-    public FXLayerOptimizer fxLayerOptimizer;
     public ComponentOptimizer componentOptimizer;
     public MaterialOptimizer materialOptimizer;
+    public MeshOptimizer meshOptimizer;
+    public FXLayerOptimizer fxLayerOptimizer;
     public AnimationRewriter animationRewriter;
-
-    private void ConfigureSettings()
-    {
-        if (settings == null) settings = new Settings();
-
-        // Smart Defaults
-        settings.ApplyOnUpload = true;
-        settings.MergeSkinnedMeshes = true;
-        settings.MergeStaticMeshesAsSkinned = true;
-        settings.MergeDifferentPropertyMaterials = HasCustomShaderSupport;
-        settings.MergeSameDimensionTextures = false;
-        settings.MergeMainTex = false;
-        settings.OptimizeFXLayer = true;
-        settings.CombineApproximateMotionTimeAnimations = false;
-        settings.DisablePhysBonesWhenUnused = true;
-        settings.MergeSameRatioBlendShapes = true;
-        settings.DeleteUnusedComponents = true;
-        settings.ProfileTimeUsed = ProfileTimeUsed;
-
-        // Smart Logic
-        settings.DeleteUnusedGameObjects = !UsesAnyLayerMasks() ? 1 : 0;
-
-        long polyCount = GetPolyCountRaw();
-        bool lowPoly = polyCount < MaxPolyCountForAutoShaderToggle;
-
-        settings.MergeSkinnedMeshesWithShaderToggle = (HasCustomShaderSupport && lowPoly) ? 1 : 0;
-        settings.MergeSkinnedMeshesWithNaNimation = lowPoly ? 1 : 0;
-
-        settings.NaNimationAllow3BoneSkinning = false;
-        settings.MergeSkinnedMeshesSeparatedByDefaultEnabledState = true;
-
-        bool mergeShaderToggle = settings.MergeSkinnedMeshesWithShaderToggle != 0;
-        bool mergeDiffMat = settings.MergeDifferentPropertyMaterials;
-
-        settings.WritePropertiesAsStaticValues = HasCustomShaderSupport && (mergeShaderToggle || mergeDiffMat);
-    }
+    public TextureOptimizer textureOptimizer;
 
     private long GetPolyCountRaw()
     {
@@ -112,47 +76,50 @@ public partial class AvatarOptimizer : MonoBehaviour, VRC.SDKBase.IEditorOnly
 
     public void EnsureInitializedForEditor()
     {
-        ConfigureSettings();
         if (context == null)
         {
             context = new OptimizationContext();
         }
         if (cacheManager == null)
         {
-            cacheManager = new CacheManager(context, settings, gameObject);
+            cacheManager = new CacheManager(context, gameObject);
         }
         if (fxLayerOptimizer == null)
         {
-            fxLayerOptimizer = new FXLayerOptimizer(context, settings, gameObject, this);
+            fxLayerOptimizer = new FXLayerOptimizer(context, gameObject, this);
         }
         if (componentOptimizer == null)
         {
-            componentOptimizer = new ComponentOptimizer(context, settings, gameObject, this);
+            componentOptimizer = new ComponentOptimizer(context, gameObject, this);
         }
         if (materialOptimizer == null)
         {
-            materialOptimizer = new MaterialOptimizer(context, settings, gameObject, this);
+            materialOptimizer = new MaterialOptimizer(context, gameObject, this);
         }
         if (meshOptimizer == null)
         {
-            meshOptimizer = new MeshOptimizer(context, cacheManager, settings, gameObject, this);
+            meshOptimizer = new MeshOptimizer(context, cacheManager, gameObject, this);
         }
         if (animationRewriter == null)
         {
-            animationRewriter = new AnimationRewriter(context, settings, gameObject, cacheManager, componentOptimizer, fxLayerOptimizer, meshOptimizer, this);
+            animationRewriter = new AnimationRewriter(context, gameObject, cacheManager, componentOptimizer, fxLayerOptimizer, meshOptimizer, this);
+        }
+        if (textureOptimizer == null)
+        {
+            textureOptimizer = new TextureOptimizer(context, gameObject);
         }
     }
 
     public void Optimize()
     {
-        ConfigureSettings();
         context = new OptimizationContext();
-        cacheManager = new CacheManager(context, settings, gameObject);
-        fxLayerOptimizer = new FXLayerOptimizer(context, settings, gameObject, this);
-        componentOptimizer = new ComponentOptimizer(context, settings, gameObject, this);
-        materialOptimizer = new MaterialOptimizer(context, settings, gameObject, this);
-        meshOptimizer = new MeshOptimizer(context, cacheManager, settings, gameObject, this);
-        animationRewriter = new AnimationRewriter(context, settings, gameObject, cacheManager, componentOptimizer, fxLayerOptimizer, meshOptimizer, this);
+        cacheManager = new CacheManager(context, gameObject);
+        fxLayerOptimizer = new FXLayerOptimizer(context, gameObject, this);
+        componentOptimizer = new ComponentOptimizer(context, gameObject, this);
+        materialOptimizer = new MaterialOptimizer(context, gameObject, this);
+        meshOptimizer = new MeshOptimizer(context, cacheManager, gameObject, this);
+        animationRewriter = new AnimationRewriter(context, gameObject, cacheManager, componentOptimizer, fxLayerOptimizer, meshOptimizer, this);
+        textureOptimizer = new TextureOptimizer(context, gameObject);
 
         var oldCulture = Thread.CurrentThread.CurrentCulture;
         var oldUICulture = Thread.CurrentThread.CurrentUICulture;
@@ -160,7 +127,11 @@ public partial class AvatarOptimizer : MonoBehaviour, VRC.SDKBase.IEditorOnly
         {
             Thread.CurrentThread.CurrentCulture = CultureInfo.InvariantCulture;
             Thread.CurrentThread.CurrentUICulture = CultureInfo.InvariantCulture;
-            DisplayProgressBar("Clear TrashBin Folder", 0.01f);
+            
+            DisplayProgressBar("Optimizing Textures", 0.05f);
+            textureOptimizer.OptimizeTextures();
+
+            DisplayProgressBar("Clear TrashBin Folder", 0.1f);
             AssetManager.ClearTrashBin(context);
             Profiler.StartSection("ClearCaches()");
             ClearCaches();
@@ -169,16 +140,15 @@ public partial class AvatarOptimizer : MonoBehaviour, VRC.SDKBase.IEditorOnly
             componentOptimizer.DestroyEditorOnlyGameObjects();
             Profiler.StartNextSection("DestroyUnusedComponents()");
             componentOptimizer.DestroyUnusedComponents();
-            DisplayProgressBar("Removing duplicate materials", 0.05f);
+            DisplayProgressBar("Removing duplicate materials", 0.25f);
             Profiler.StartNextSection("DeduplicateMaterials()");
             materialOptimizer.DeduplicateMaterials();
-            if (settings.WritePropertiesAsStaticValues)
-            {
-                DisplayProgressBar("Parsing Shaders", 0.05f);
-                Profiler.StartNextSection("ParseAndCacheAllShaders()");
-                ShaderAnalyzer.ParseAndCacheAllShaders(materialOptimizer.FindAllUsedMaterials().Select(m => m.shader), true,
-                    (done, total) => DisplayProgressBar($"Parsing Shaders ({done}/{total})", 0.05f + 0.15f * done / total));
-            }
+            
+            DisplayProgressBar("Parsing Shaders", 0.3f);
+            Profiler.StartNextSection("ParseAndCacheAllShaders()");
+            ShaderAnalyzer.ParseAndCacheAllShaders(materialOptimizer.FindAllUsedMaterials().Select(m => m.shader), true,
+                (done, total) => DisplayProgressBar($"Parsing Shaders ({done}/{total})", 0.3f + 0.15f * done / total));
+            
             context.physBonesToDisable = FindAllPhysBonesToDisable();
             Profiler.StartNextSection("ConvertStaticMeshesToSkinnedMeshes()");
             ConvertStaticMeshesToSkinnedMeshes();
@@ -187,18 +157,18 @@ public partial class AvatarOptimizer : MonoBehaviour, VRC.SDKBase.IEditorOnly
             Profiler.StartNextSection("DeleteAllUnusedSkinnedMeshRenderers()");
             DeleteAllUnusedSkinnedMeshRenderers();
             Profiler.StartNextSection("CombineSkinnedMeshes()");
-            DisplayProgressBar("Combining meshes", 0.2f);
+            DisplayProgressBar("Combining meshes", 0.5f);
             CombineSkinnedMeshes();
 
             Profiler.StartNextSection("CombineAndOptimizeMaterials()");
-            DisplayProgressBar("Optimizing materials", 0.3f);
+            DisplayProgressBar("Optimizing materials", 0.6f);
             materialOptimizer.CombineAndOptimizeMaterials();
             Profiler.StartNextSection("OptimizeMaterialSwapMaterials()");
             materialOptimizer.OptimizeMaterialSwapMaterials();
             Profiler.StartNextSection("OptimizeMaterialsOnNonSkinnedMeshes()");
             materialOptimizer.OptimizeMaterialsOnNonSkinnedMeshes();
             Profiler.StartNextSection("SaveOptimizedMaterials()");
-            DisplayProgressBar("Reload optimized materials", 0.60f);
+            DisplayProgressBar("Reload optimized materials", 0.80f);
             materialOptimizer.SaveOptimizedMaterials();
             Profiler.StartNextSection("DestroyUnusedGameObjects()");
             DisplayProgressBar("Destroying unused GameObjects", 0.90f);
@@ -209,11 +179,16 @@ public partial class AvatarOptimizer : MonoBehaviour, VRC.SDKBase.IEditorOnly
             Profiler.StartNextSection("DestroyImmediate(this)");
             DestroyImmediate(this);
             Profiler.EndSection();
+
+            if (context.optimizationLogs.Count > 0)
+            {
+                Debug.Log("[WKAvatarOptimizer] Optimization Report:\n" + string.Join("\n", context.optimizationLogs));
+            }
         }
         catch (System.Exception e)
         {
             Debug.LogError($"[WKVRCOptimizer] An error occurred during optimization: {e.Message}\n{e.StackTrace}");
-            throw; // Re-throw the exception to ensure it's still propagated.
+            throw;
         }
         finally
         {

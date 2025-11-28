@@ -99,7 +99,6 @@ namespace WKAvatarOptimizer.Editor
                 SSIM_mip1,
                 PSNR_mip0,
                 PSNR_mip1,
-                //PSNR_derivative,
             }
             private readonly Dictionary<Metric, (float value, string unit)> data = new Dictionary<Metric, (float value, string unit)>();
             public void SetResult(Metric metric, (float value, string unit) result)
@@ -345,8 +344,6 @@ namespace WKAvatarOptimizer.Editor
                 quality.SetResult(TextureQuality.Metric.SSIM_mip1, (ssim * 100, ""));
             }
 
-            //psnr = CalculatePSNR(refTexture, targetTexture, isNormalMap, refImporter.sRGBTexture, 0, true);
-            //quality.SetResult(TextureQuality.Metric.PSNR_derivative, (psnr, "dB"));
 
             return quality;
         }

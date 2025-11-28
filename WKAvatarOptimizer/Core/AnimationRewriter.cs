@@ -3,7 +3,6 @@ using UnityEditor;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
-using WKAvatarOptimizer.Data;
 using WKAvatarOptimizer.Extensions;
 using VRC.SDK3.Avatars.Components;
 using VRC.SDK3.Dynamics.PhysBone.Components;
@@ -17,7 +16,6 @@ namespace WKAvatarOptimizer.Core
     public class AnimationRewriter
     {
         private readonly OptimizationContext context;
-        private readonly Settings settings;
         private readonly GameObject root;
         private readonly CacheManager cacheManager;
         private readonly ComponentOptimizer componentOptimizer;
@@ -25,10 +23,9 @@ namespace WKAvatarOptimizer.Core
         private readonly MeshOptimizer meshOptimizer;
         private readonly AvatarOptimizer main;
 
-        public AnimationRewriter(OptimizationContext context, Settings settings, GameObject root, CacheManager cacheManager, ComponentOptimizer componentOptimizer, FXLayerOptimizer fxLayerOptimizer, MeshOptimizer meshOptimizer, AvatarOptimizer main)
+        public AnimationRewriter(OptimizationContext context, GameObject root, CacheManager cacheManager, ComponentOptimizer componentOptimizer, FXLayerOptimizer fxLayerOptimizer, MeshOptimizer meshOptimizer, AvatarOptimizer main)
         {
             this.context = context;
-            this.settings = settings;
             this.root = root;
             this.cacheManager = cacheManager;
             this.componentOptimizer = componentOptimizer;
@@ -51,7 +48,7 @@ namespace WKAvatarOptimizer.Core
                 for (int i = 0; fxLayer != null && i < fxLayerLayers.Length; i++) {
                     if (fxLayerLayers[i] == null || fxLayerLayers[i].stateMachine == null)
                         continue;
-                    if (settings.OptimizeFXLayer && (uselessLayers.Contains(i) || fxLayerOptimizer.IsMergeableFXLayer(i)))
+                    if ((uselessLayers.Contains(i) || fxLayerOptimizer.IsMergeableFXLayer(i)))
                         continue;
                     goOffPaths.Clear();
                     goOnPaths.Clear();
@@ -297,7 +294,7 @@ namespace WKAvatarOptimizer.Core
                     }
                 } else {
                     SetFloatCurve(newClip, fixedBinding, curve);
-                    if (fixedBinding.propertyName.StartsWithSimple($"material.WKVRCOptimizer") && (main.settings.MergeSkinnedMeshesWithNaNimation != 0)) {
+                    if (fixedBinding.propertyName.StartsWithSimple($"material.WKVRCOptimizer")) {
                         var otherBinding = fixedBinding;
                         var match = Regex.Match(fixedBinding.propertyName, @"material\.WKVRCOptimizer(.+)_ArrayIndex\d+(\.[a-z])?");
                         otherBinding.propertyName = $"material.{match.Groups[1].Value}{match.Groups[2].Value}";
@@ -421,7 +418,7 @@ namespace WKAvatarOptimizer.Core
             var fxLayersToMerge = new List<int>();
             var fxLayersToDestroy = new List<int>();
             var fxLayerMap = new Dictionary<int, int>();
-            if (settings.OptimizeFXLayer && fxLayerOptimizer.GetFXLayer() != null)
+            if (fxLayerOptimizer.GetFXLayer() != null)
             {
                 var nonErrors = new HashSet<string>() {"toggle", "motion time", "blend tree", "multi toggle"};
                 var errors = fxLayerOptimizer.AnalyzeFXLayerMergeAbility();
@@ -515,7 +512,6 @@ namespace WKAvatarOptimizer.Core
                     newController.layers = layers;
                 }
 
-                if (settings.DeleteUnusedGameObjects != 0)
                 {
                     foreach (var behavior in newController.layers.SelectMany(layer => layer.stateMachine.EnumerateAllBehaviours()))
                     {

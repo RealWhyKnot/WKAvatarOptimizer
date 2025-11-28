@@ -44,7 +44,6 @@ namespace WKAvatarOptimizer.Core
                 }
             }
             context.trashBinPath = trashBinRoot + "/TrashBin/";
-            // Check if folder exists before deleting
             if (AssetDatabase.IsValidFolder(trashBinRoot + "/TrashBin"))
             {
                 AssetDatabase.DeleteAsset(trashBinRoot + "/TrashBin");

@@ -19,43 +19,40 @@ namespace WKAvatarOptimizer.Core
         public Dictionary<AnimationPath, AnimationPath> newAnimationPaths = new Dictionary<AnimationPath, AnimationPath>();
         public HashSet<string> pathsToDeleteGameObjectTogglesOn = new HashSet<string>();
         
-        // Material Optimization State
         public Dictionary<Material, (Material target, List<Material> sources, ShaderOptimizer.OptimizedShader optimizerResult)> optimizedMaterials = new Dictionary<Material, (Material, List<Material>, ShaderOptimizer.OptimizedShader)>();
         public List<string> optimizedMaterialImportPaths = new List<string>();
         
-        // Path Mapping
         public Dictionary<string, List<List<string>>> oldPathToMergedPaths = new Dictionary<string, List<List<string>>>();
         public Dictionary<string, string> oldPathToMergedPath = new Dictionary<string, string>();
         
-        // PhysBones
         public Dictionary<string, List<string>> physBonesToDisable = new Dictionary<string, List<string>>();
         
-        // Slot Swaps
         public Dictionary<(string path, int slot), HashSet<Material>> slotSwapMaterials = new Dictionary<(string, int), HashSet<Material>>();
         public Dictionary<(string path, int slot), Dictionary<Material, Material>> optimizedSlotSwapMaterials = new Dictionary<(string, int), Dictionary<Material, Material>>();
         public Dictionary<(string path, int index), (string path, int index)> materialSlotRemap = new Dictionary<(string, int), (string, int)>();
         
-        // Animated Properties
         public Dictionary<string, HashSet<string>> animatedMaterialProperties = new Dictionary<string, HashSet<string>>();
         public Dictionary<string, HashSet<string>> fusedAnimatedMaterialProperties = new Dictionary<string, HashSet<string>>();
         public Dictionary<string, Dictionary<string, Vector4>> animatedMaterialPropertyDefaultValues = new Dictionary<string, Dictionary<string, Vector4>>();
         
-        // Texture Arrays
         public List<List<Texture2D>> textureArrayLists = new List<List<Texture2D>>();
         public List<Texture2DArray> textureArrays = new List<Texture2DArray>();
         public Dictionary<Material, List<(string name, Texture2DArray array)>> texArrayPropertiesToSet = new Dictionary<Material, List<(string name, Texture2DArray array)>>();
         
-        // Transform Mapping
         public HashSet<Transform> keepTransforms = new HashSet<Transform>();
         public HashSet<string> convertedMeshRendererPaths = new HashSet<string>();
         public Dictionary<Transform, Transform> movingParentMap = new Dictionary<Transform, Transform>();
         public Dictionary<string, Transform> transformFromOldPath = new Dictionary<string, Transform>();
         
-        // Animation Values
         public Dictionary<EditorCurveBinding, float> constantAnimatedValuesToAdd = new Dictionary<EditorCurveBinding, float>();
         
+        public List<string> optimizationLogs = new List<string>();
+
+        public void Log(string message) {
+            optimizationLogs.Add($"[OptimizationContext] {message}");
+        }
+
         private static void _Log(string message) {
-            Debug.Log($"[OptimizationContext] {message}");
         }
 
         public static readonly HashSet<string> MMDBlendShapes = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase)
@@ -134,9 +131,8 @@ namespace WKAvatarOptimizer.Core
 
         public void Clear()
         {
-            _Log("Clear() called. Resetting optimization context.");
+            Log("Clear() called. Resetting optimization context.");
             packageRootPath = "Assets/WKVRCOptimizer";
-            // trashBinPath is re-calculated usually
             binaryAssetBundlePath = null;
             materialAssetBundlePath = null;
             
@@ -163,7 +159,7 @@ namespace WKAvatarOptimizer.Core
             movingParentMap.Clear();
             transformFromOldPath.Clear();
             constantAnimatedValuesToAdd.Clear();
-            _Log("Clear() finished. Optimization context reset.");
+            Log("Clear() finished. Optimization context reset.");
         }
     }
 }

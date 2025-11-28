@@ -1,23 +1,19 @@
 using UnityEngine;
 using System.Collections.Generic;
-using WKAvatarOptimizer.Data;
 
 namespace WKAvatarOptimizer.Core
 {
     public class CacheManager
     {
 
-        private readonly OptimizationContext context;
-        private readonly Settings settings;
-        private readonly GameObject root;
-
-        public CacheManager(OptimizationContext context, Settings settings, GameObject root)
-        {
-            this.context = context;
-            this.settings = settings;
-            this.root = root;
-        }
-
+                private readonly OptimizationContext context;
+                private readonly GameObject gameObject;
+                
+                public CacheManager(OptimizationContext context, GameObject root)
+                {
+                    this.context = context;
+                    this.gameObject = root;
+                }
         public Dictionary<string, bool> cache_MeshUses4BoneSkinning = null;
         public Dictionary<string, bool> cache_CanUseNaNimationOnMesh = null;
         public HashSet<string> cache_FindAllPathsWhereMeshOrGameObjectHasOnlyOnAnimation = null;

@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using UnityEditor;
-using WKAvatarOptimizer.Data;
 using WKAvatarOptimizer.Extensions;
 using VRC.Dynamics;
 using VRC.SDK3.Dynamics.Contact.Components;
@@ -17,11 +16,9 @@ namespace WKAvatarOptimizer.Core
     public class ComponentOptimizer
     {
         private readonly OptimizationContext context;
-        private readonly Settings settings;
-        private readonly GameObject gameObject; // Renamed from root to gameObject to match Main.cs style or stick to root? Main uses gameObject.
+        private readonly GameObject gameObject;
         private readonly AvatarOptimizer optimizer;
 
-        // Caches
         private HashSet<Component> cache_FindAllUnusedComponents = null;
         private HashSet<Transform> cache_FindAllMovingTransforms = null;
         private HashSet<Transform> cache_FindAllUnmovingTransforms = null;
@@ -31,10 +28,9 @@ namespace WKAvatarOptimizer.Core
         private HashSet<Transform> cache_GetAllExcludedTransforms = null;
         private HashSet<string> cache_GetAllExcludedTransformPaths = null;
 
-        public ComponentOptimizer(OptimizationContext context, Settings settings, GameObject gameObject, AvatarOptimizer optimizer)
+        public ComponentOptimizer(OptimizationContext context, GameObject gameObject, AvatarOptimizer optimizer)
         {
             this.context = context;
-            this.settings = settings;
             this.gameObject = gameObject;
             this.optimizer = optimizer;
         }
@@ -60,9 +56,6 @@ namespace WKAvatarOptimizer.Core
 
         public void DestroyUnusedComponents()
         {
-            if (!settings.DeleteUnusedComponents)
-                return;
-            
             var list = FindAllUnusedComponents();
             foreach (var component in list)
             {
@@ -82,9 +75,6 @@ namespace WKAvatarOptimizer.Core
 
         public void DestroyUnusedGameObjects()
         {
-            if (settings.DeleteUnusedGameObjects == 0)
-                return;
-
             var used = new HashSet<Transform>();
 
             var movingTransforms = FindAllMovingTransforms();
@@ -125,7 +115,6 @@ namespace WKAvatarOptimizer.Core
                 used.UnionWith(FindReferencedTransforms(c));
             }
 
-            // the vrc finger colliders depend on their relative position to their parent, so we need to keep their parents around too
             var avDescriptor = gameObject.GetComponent<VRCAvatarDescriptor>();
             var fingerColliders = new List<VRCAvatarDescriptor.ColliderConfig>() {
                 avDescriptor.collider_fingerIndexL,
@@ -435,8 +424,6 @@ namespace WKAvatarOptimizer.Core
         public Dictionary<string, List<string>> FindAllPhysBonesToDisable()
         {
             var result = new Dictionary<string, List<string>>();
-            if (!settings.DisablePhysBonesWhenUnused)
-                return result;
             var physBoneDependencies = FindAllPhysBoneDependencies();
             foreach (var dependencies in physBoneDependencies.Values)
             {
@@ -712,11 +699,6 @@ namespace WKAvatarOptimizer.Core
             var stack = new Stack<Transform>();
             var alwaysDisabledGameObjects = FindAllAlwaysDisabledGameObjects();
             var unusedComponents = FindAllUnusedComponents();
-            if (!settings.DeleteUnusedComponents)
-            {
-                alwaysDisabledGameObjects = new HashSet<Transform>();
-                unusedComponents = new HashSet<Component>();
-            }
             stack.Push(gameObject.transform);
             while (stack.Count > 0)
             {

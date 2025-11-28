@@ -14,18 +14,15 @@ namespace WKAvatarOptimizer.Core
     public class MaterialOptimizer
     {
         private readonly OptimizationContext context;
-        private readonly Settings settings;
-        private readonly GameObject gameObject; // Renamed from root to gameObject for consistency
+        private readonly GameObject gameObject;
         private readonly AvatarOptimizer optimizer;
 
-        // Caches
         private Dictionary<string, Material> cache_GetFirstMaterialOnPath = null;
         private HashSet<Material> cache_FindAllUsedMaterials = null;
 
-        public MaterialOptimizer(OptimizationContext context, Settings settings, GameObject gameObject, AvatarOptimizer optimizer)
+        public MaterialOptimizer(OptimizationContext context, GameObject gameObject, AvatarOptimizer optimizer)
         {
             this.context = context;
-            this.settings = settings;
             this.gameObject = gameObject;
             this.optimizer = optimizer;
         }
@@ -215,9 +212,13 @@ namespace WKAvatarOptimizer.Core
             string path,
             List<List<int>> mergedMeshIndices = null)
         {
-            if (!(settings.WritePropertiesAsStaticValues || sources.Any(list => list.Count > 1) || (meshToggleCount > 1 && settings.MergeSkinnedMeshesWithShaderToggle == 1)))
+            if (!(sources.Any(list => list.Count > 1) || meshToggleCount > 1))
             {
-                return sources.Select(list => list[0].mat).ToArray();
+                // Even if just one source, we likely want to optimize if WritePropertiesAsStaticValues is true
+                // But the original check was:
+                // if (!(settings.WritePropertiesAsStaticValues || sources.Any(list => list.Count > 1) || (meshToggleCount > 1 && settings.MergeSkinnedMeshesWithShaderToggle == 1)))
+                // Since WritePropertiesAsStaticValues is true, this check is always false (negated true is false).
+                // So we proceed.
             }
             if (!context.fusedAnimatedMaterialProperties.TryGetValue(path, out var usedMaterialProps))
                 usedMaterialProps = new HashSet<string>();
@@ -237,7 +238,7 @@ namespace WKAvatarOptimizer.Core
                         defaultValuesForCurrentPath = new Dictionary<string, Vector4>();
                         context.animatedMaterialPropertyDefaultValues[path] = defaultValuesForCurrentPath;
                     }
-                    if (optimizer.fxLayerOptimizer.FindAllAnimatedMaterialProperties().TryGetValue(allOriginalMeshPaths[i][0], out var animatedProps)) { // Using delegated fxLayerOptimizer
+                    if (optimizer.fxLayerOptimizer.FindAllAnimatedMaterialProperties().TryGetValue(allOriginalMeshPaths[i][0], out var animatedProps)) {
                         foreach (var prop in animatedProps) {
                             string name = prop;
                             bool isVector = name.EndsWith(".x") || name.EndsWith(".r");
@@ -247,7 +248,7 @@ namespace WKAvatarOptimizer.Core
                                     || (!isVector && (animatedProps.Contains($"{name}.x") || animatedProps.Contains($"{name}.r")))) {
                                 continue;
                             }
-                            if (optimizer.meshOptimizer.GetSameAnimatedPropertiesOnMergedMesh(path).Contains(name)) { // Updated delegate
+                            if (optimizer.meshOptimizer.GetSameAnimatedPropertiesOnMergedMesh(path).Contains(name)) {
                                 continue;
                             }
                             defaultAnimatedProperties.Add( ($"WKVRCOptimizer{name}_ArrayIndex{i}", isVector));
@@ -268,7 +269,7 @@ namespace WKAvatarOptimizer.Core
                     defaultAnimatedProperties.Add( ($"_IsActiveMesh{i}", false));
                 }
             }
-            if (!optimizer.fxLayerOptimizer.DoesFXLayerUseWriteDefaults()) // Using delegated fxLayerOptimizer
+            if (!optimizer.fxLayerOptimizer.DoesFXLayerUseWriteDefaults())
                 animatedPropertyOnMeshID = null;
             var materials = new Material[sources.Count];
             var parsedShader = new ParsedShader[sources.Count];
@@ -294,7 +295,7 @@ namespace WKAvatarOptimizer.Core
                 }
                 
                 char[] invalidChars = System.IO.Path.GetInvalidFileNameChars()
-                    .Append('\'') // imagine fxc being able to handle all legal filenames smh
+                    .Append('\'')
                     .ToArray();
                 stripShadowVariants[i] = source[0].renderQueue > 2500;
                 sanitizedMaterialNames[i] = "s_" + System.IO.Path.GetFileNameWithoutExtension(parsedShader[i].filePath)
@@ -392,13 +393,8 @@ namespace WKAvatarOptimizer.Core
                         replace[i][tuple.Key] = tuple.Value.values[0];
                     }
                 }
-                if (!settings.WritePropertiesAsStaticValues)
-                {
-                    foreach (string key in replace[i].Keys.Where(k => !k.StartsWithSimple("arrayIndex")).ToArray())
-                    {
-                        replace[i].Remove(key);
-                    }
-                }
+                
+                // if (!settings.WritePropertiesAsStaticValues) block removed as we assume true
 
                 texturesToCheckNull[i] = new Dictionary<string, string>();
                 foreach (var prop in parsedShader[i].properties)
@@ -427,7 +423,7 @@ namespace WKAvatarOptimizer.Core
                 animatedPropertyValues[i] = new Dictionary<string, string>();
                 if (meshToggleCount > 1) {
                     foreach (var propName in usedMaterialProps) {
-                        if (optimizer.meshOptimizer.GetSameAnimatedPropertiesOnMergedMesh(path).Contains(propName)) { // Updated delegate
+                        if (optimizer.meshOptimizer.GetSameAnimatedPropertiesOnMergedMesh(path).Contains(propName)) {
                             arrayPropertyValues[i].Remove(propName);
                             replace[i].Remove(propName);
                             continue;
@@ -435,7 +431,7 @@ namespace WKAvatarOptimizer.Core
                         if (originalMeshPaths != null) {
                             bool skipProp = true;
                             foreach (var originalPath in originalMeshPaths[i]) {
-                                if (optimizer.fxLayerOptimizer.FindAllAnimatedMaterialProperties().TryGetValue(originalPath, out var props)) { // Using delegated fxLayerOptimizer
+                                if (optimizer.fxLayerOptimizer.FindAllAnimatedMaterialProperties().TryGetValue(originalPath, out var props)) {
                                     if (props.Contains(propName) || props.Contains(propName + ".x") || props.Contains(propName + ".r")) {
                                         skipProp = false;
                                         break;
@@ -622,9 +618,6 @@ namespace WKAvatarOptimizer.Core
                     mat.SetOverrideTag("VRCFallback", vrcFallback);
                 }
                 
-                // Explicitly set WKVRCOptimizer_Zero to 0 to ensure NaN checks in shader work correctly
-                // This uniform is used for bitwise XOR NaN checks and dummy code blocks. 
-                // Must be strictly 0.0f.
                 mat.SetFloat("WKVRCOptimizer_Zero", 0.0f);
                 
                 Profiler.EndSection();
@@ -641,8 +634,7 @@ namespace WKAvatarOptimizer.Core
                 meshRenderer.GetPropertyBlock(props);
                 int meshCount = props.GetInt("WKVRCOptimizer_CombinedMeshCount");
 
-                if (settings.MergeSkinnedMeshesWithShaderToggle == 1
-                    && context.fusedAnimatedMaterialProperties.TryGetValue(meshRenderer.transform.GetPathToRoot(gameObject.transform), out var animatedProperties))
+                if (context.fusedAnimatedMaterialProperties.TryGetValue(meshRenderer.transform.GetPathToRoot(gameObject.transform), out var animatedProperties))
                 {
                     foreach (var mat in meshRenderer.sharedMaterials)
                     {
@@ -663,7 +655,7 @@ namespace WKAvatarOptimizer.Core
                                 var propArrayName = $"WKVRCOptimizer{propName}_ArrayIndex{mID}";
                                 if (!mat.HasProperty(propArrayName))
                                     continue;
-                                var signal = optimizer.fxLayerOptimizer.DoesFXLayerUseWriteDefaults() ? 0.0f : float.NaN; // Using delegated fxLayerOptimizer
+                                var signal = optimizer.fxLayerOptimizer.DoesFXLayerUseWriteDefaults() ? 0.0f : float.NaN;
                                 if (isVector) {
                                     mat.SetVector(propArrayName, new Vector4(signal, signal, signal, signal));
                                 } else {
@@ -710,7 +702,7 @@ namespace WKAvatarOptimizer.Core
 
         public void CombineAndOptimizeMaterials()
         {
-            var exclusions = optimizer.componentOptimizer.GetAllExcludedTransforms(); // Using delegated componentOptimizer
+            var exclusions = optimizer.componentOptimizer.GetAllExcludedTransforms();
             var skinnedMeshRenderers = gameObject.GetComponentsInChildren<SkinnedMeshRenderer>(true)
                 .Where(smr => !exclusions.Contains(smr.transform) && smr.sharedMesh != null).ToArray();
             for (int meshRenderIndex = 0; meshRenderIndex < skinnedMeshRenderers.Length; meshRenderIndex++)
@@ -827,7 +819,7 @@ namespace WKAvatarOptimizer.Core
                     newMesh.SetVertices(targetVertices);
                     newMesh.bindposes = mesh.bindposes;
                     newMesh.SetBoneWeights(targetWeights.ToArray());
-                    bool particleSystemUsesMeshColor = optimizer.meshOptimizer.GetParticleSystemsUsingRenderer(meshRenderer).Any(ps => ps.shape.useMeshColors); // Updated delegate
+                    bool particleSystemUsesMeshColor = optimizer.meshOptimizer.GetParticleSystemsUsingRenderer(meshRenderer).Any(ps => ps.shape.useMeshColors);
                     if (targetColor != null && (particleSystemUsesMeshColor || targetColor.Any(c => !c.Equals(Color.white))))
                     {
                         newMesh.colors = targetColor.ToArray();
@@ -890,7 +882,7 @@ namespace WKAvatarOptimizer.Core
 
                     Profiler.StartSection("Mesh.Optimize()");
 
-                    if(!optimizer.componentOptimizer.IsSPSPenetratorRoot(meshRenderer.transform)) { // Using delegated componentOptimizer
+                    if(!optimizer.componentOptimizer.IsSPSPenetratorRoot(meshRenderer.transform)) {
                         newMesh.Optimize();
                     }
                     
@@ -920,7 +912,7 @@ namespace WKAvatarOptimizer.Core
                     if (uniqueMatchedMaterials[i].Count != 1 || uniqueMatchedMaterials[i][0].material == null)
                         continue;
                     var originalSlot = GetOriginalSlot((meshPath, matchedSlots[i][0].index));
-                    optimizer.meshOptimizer.AddAnimationPathChange((originalSlot.path, "m_Materials.Array.data[" + originalSlot.index + "]", typeof(SkinnedMeshRenderer)), // Updated delegate
+                    optimizer.meshOptimizer.AddAnimationPathChange((originalSlot.path, "m_Materials.Array.data[" + originalSlot.index + "]", typeof(SkinnedMeshRenderer)),
                         (meshPath, "m_Materials.Array.data[" + i + "]", typeof(SkinnedMeshRenderer)));
                     if (!context.optimizedSlotSwapMaterials.TryGetValue(originalSlot, out var optimizedSwapMaterials))
                     {
@@ -931,7 +923,7 @@ namespace WKAvatarOptimizer.Core
 
                 meshRenderer.sharedMaterials = optimizedMaterials;
 
-                foreach (var ps in optimizer.meshOptimizer.GetParticleSystemsUsingRenderer(meshRenderer)) // Updated delegate
+                foreach (var ps in optimizer.meshOptimizer.GetParticleSystemsUsingRenderer(meshRenderer))
                 {
                     var shape = ps.shape;
                     if (shape.useMeshMaterialIndex)
@@ -945,7 +937,7 @@ namespace WKAvatarOptimizer.Core
         public void OptimizeMaterialsOnNonSkinnedMeshes()
         {
             var meshRenderers = gameObject.GetComponentsInChildren<MeshRenderer>(true);
-            var exclusions = optimizer.componentOptimizer.GetAllExcludedTransforms(); // Using delegated componentOptimizer
+            var exclusions = optimizer.componentOptimizer.GetAllExcludedTransforms();
             foreach (var meshRenderer in meshRenderers)
             {
                 if (exclusions.Contains(meshRenderer.transform) || meshRenderer.GetSharedMesh() == null)
@@ -972,24 +964,22 @@ namespace WKAvatarOptimizer.Core
                     Material currentMaterial = meshRenderer.sharedMaterials[i];
                     if (currentMaterial == null) continue;
 
-                    // Try to get optimized material from the local optimizedMaterials dictionary (Source -> Target)
                     if (optimizedMaterials.TryGetValue(currentMaterial, out var optimizedMaterial))
                     {
                         finalMaterials[i] = optimizedMaterial;
                     }
                     else
                     {
-                        // If not found in local map, check slot-specific optimizations
                         if (context.optimizedSlotSwapMaterials.TryGetValue((path, i), out var optimizedSwapMaterialMap))
                         {
                             if (optimizedSwapMaterialMap.TryGetValue(currentMaterial, out var slotOptimizedMaterial))
                             {
                                 finalMaterials[i] = slotOptimizedMaterial;
                             } else {
-                                finalMaterials[i] = currentMaterial; // Fallback to original if no optimization found
+                                finalMaterials[i] = currentMaterial;
                             }
                         } else {
-                            finalMaterials[i] = currentMaterial; // Fallback to original if no slot-specific map
+                            finalMaterials[i] = currentMaterial;
                         }
                     }
                 }
@@ -1002,14 +992,13 @@ namespace WKAvatarOptimizer.Core
             if (cache_FindAllUsedMaterials != null)
                 return cache_FindAllUsedMaterials;
             var materials = new HashSet<Material>();
-            foreach (var renderer in optimizer.componentOptimizer.GetUsedComponentsInChildren<Renderer>()) // Updated delegate: GetUsedComponentsInChildren is in componentOptimizer (inherited/moved logic) - Wait, Main has it.
+            foreach (var renderer in optimizer.componentOptimizer.GetUsedComponentsInChildren<Renderer>())
             {
                 materials.UnionWith(renderer.sharedMaterials.Where(m => m != null));
             }
             return cache_FindAllUsedMaterials = materials;
         }
 
-        // ... CreateTextureArrays, CombineTextures, IsTextureLinear, CanCombineTextures ...
 
         public List<List<MaterialSlot>> FindAllMergeAbleMaterials(IEnumerable<Renderer> renderers)
         {
@@ -1039,10 +1028,9 @@ namespace WKAvatarOptimizer.Core
 
         private bool CanCombineMaterialsWith(List<MaterialSlot> list, MaterialSlot candidate)
         {
-            // Check simple things first to fail fast
             if (list[0].material != candidate.material)
                 return false;
-            if (optimizer.meshOptimizer.GetParticleSystemsUsingRenderer(candidate.renderer).Any(ps => ps.shape.useMeshMaterialIndex && ps.shape.meshMaterialIndex == candidate.index)) // Updated delegate
+            if (optimizer.meshOptimizer.GetParticleSystemsUsingRenderer(candidate.renderer).Any(ps => ps.shape.useMeshMaterialIndex && ps.shape.meshMaterialIndex == candidate.index))
                 return false;
             
             return true;

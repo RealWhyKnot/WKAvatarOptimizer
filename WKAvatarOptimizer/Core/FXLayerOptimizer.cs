@@ -6,7 +6,6 @@ using UnityEditor;
 using UnityEditor.Animations;
 using UnityEngine;
 using VRC.SDK3.Avatars.Components;
-using WKAvatarOptimizer.Data;
 using WKAvatarOptimizer.Extensions;
 using WKAvatarOptimizer.Core.Util;
 
@@ -17,11 +16,9 @@ namespace WKAvatarOptimizer.Core
     public class FXLayerOptimizer
     {
         private readonly OptimizationContext context;
-        private readonly Settings settings;
         private readonly GameObject gameObject;
         private readonly AvatarOptimizer optimizer;
 
-        // Caches
         private AnimatorControllerLayer[] cache_GetFXLayerLayers = null;
         private List<List<string>> cache_AnalyzeFXLayerMergeAbility = null;
         private HashSet<int> cache_FindUselessFXLayers = null;
@@ -29,7 +26,6 @@ namespace WKAvatarOptimizer.Core
         private bool? cache_DoesFXLayerUseWriteDefaults = null;
         private HashSet<EditorCurveBinding> cache_GetAllUsedFXLayerCurveBindings = null;
         
-        // Caches moved from Main.cs that relate to FX Layer
         private HashSet<string> cache_FindAllGameObjectTogglePaths = null;
         private HashSet<string> cache_FindAllRendererTogglePaths = null;
         private Dictionary<string, HashSet<string>> cache_FindAllAnimatedMaterialProperties = null;
@@ -37,10 +33,9 @@ namespace WKAvatarOptimizer.Core
         private HashSet<EditorCurveBinding> cache_GetAllMaterialSwapBindingsToRemove = null;
         private Dictionary<EditorCurveBinding, bool> cache_MaterialSwapBindingsToRemove = null;
 
-        public FXLayerOptimizer(OptimizationContext context, Settings settings, GameObject gameObject, AvatarOptimizer optimizer)
+        public FXLayerOptimizer(OptimizationContext context, GameObject gameObject, AvatarOptimizer optimizer)
         {
             this.context = context;
-            this.settings = settings;
             this.gameObject = gameObject;
             this.optimizer = optimizer;
         }
@@ -191,7 +186,6 @@ namespace WKAvatarOptimizer.Core
                                 return false;
                             }
                         } else {
-                            // check if all curves are constant
                             var bindings = AnimationUtility.GetCurveBindings(clip);
                             foreach (var binding in bindings) {
                                 var curve = AnimationUtility.GetEditorCurve(clip, binding);
@@ -469,7 +463,7 @@ namespace WKAvatarOptimizer.Core
         }
         
         private bool CombineApproximateMotionTimeAnimations {
-            get { return settings.OptimizeFXLayer && settings.CombineApproximateMotionTimeAnimations; }
+            get { return true; }
         }
 
         private HashSet<(string path, Type type)> GetAllCurveBindings(AnimatorStateMachine stateMachine)
@@ -513,7 +507,7 @@ namespace WKAvatarOptimizer.Core
                 return cache_FindUselessFXLayers;
             }
             var fxLayer = GetFXLayer();
-            if (fxLayer == null || !settings.OptimizeFXLayer) {
+            if (fxLayer == null) {
                 return new HashSet<int>();
             }
             Profiler.StartSection("FindUselessFXLayers()");
@@ -553,8 +547,6 @@ namespace WKAvatarOptimizer.Core
                     var transform = this.gameObject.transform.GetTransformFromPath(binding.path);
                     if (transform != null)
                     {
-                        // AnimationUtility.GetAnimatableBindings(transform.gameObject, gameObject)
-                        // is too slow, so we just check if the components mentioned in the bindings exist at that path
                         uniquePossibleTypes.UnionWith(transform.GetNonNullComponents().Select(c => c.GetType()));
                         uniquePossibleTypes.Add(typeof(GameObject));
                     }
@@ -658,7 +650,7 @@ namespace WKAvatarOptimizer.Core
             for (int i = 0; i < fxLayerLayers.Length; i++)
             {
                 var stateMachine = fxLayerLayers[i].stateMachine;
-                if (stateMachine == null || (settings.OptimizeFXLayer && IsMergeableFXLayer(i)))
+                if (stateMachine == null || IsMergeableFXLayer(i))
                     continue;
                 foreach (var state in stateMachine.EnumerateAllStates())
                 {

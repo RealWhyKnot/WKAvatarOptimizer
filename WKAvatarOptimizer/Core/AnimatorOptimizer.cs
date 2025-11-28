@@ -6,7 +6,6 @@ using UnityEditor.Animations;
 using UnityEngine;
 using VRC.SDK3.Avatars.Components;
 using VRC.SDKBase;
-using WKAvatarOptimizer.Editor;
 using BlendableLayer = VRC.SDKBase.VRC_AnimatorLayerControl.BlendableLayer;
 
 namespace WKAvatarOptimizer.Core
@@ -39,8 +38,6 @@ namespace WKAvatarOptimizer.Core
             {
                 return Run(source, path, fxLayerMap, new List<int>(), new List<int>());
             }
-            // I try to use CopyAsset for non FX layers as the other way broke falling animations with gogo loco
-            // however I can't use it if the source is a sub asset
             AssetDatabase.CopyAsset(AssetDatabase.GetAssetPath(source), path);
             var target = AssetDatabase.LoadAssetAtPath<AnimatorController>(path);
             target.name = $"{source.name}(Optimized)";
@@ -494,13 +491,11 @@ namespace WKAvatarOptimizer.Core
 
         private AnimatorState CloneAnimatorState(AnimatorState old)
         {
-            // Checks if the motion is a blend tree, to avoid accidental blend tree sharing between animator assets
             Motion motion = old.motion;
             if (motion is BlendTree oldTree)
             {
                 var tree = CloneBlendTree(null, oldTree);
                 motion = tree;
-                // need to save the blend tree into the animator
                 tree.hideFlags = HideFlags.HideInHierarchy;
                 AssetDatabase.AddObjectToAsset(motion, assetPath);
             }
@@ -530,11 +525,8 @@ namespace WKAvatarOptimizer.Core
             return n;
         }
 
-        // Taken from here: https://gist.github.com/phosphoer/93ca8dcbf925fc006e4e9f6b799c13b0
         private BlendTree CloneBlendTree(BlendTree parentTree, BlendTree oldTree)
         {
-            // Create a child tree in the destination parent, this seems to be the only way to correctly 
-            // add a child tree as opposed to AddChild(motion)
             BlendTree pastedTree = new BlendTree();
             pastedTree.name = oldTree.name;
             pastedTree.blendType = oldTree.blendType;
@@ -544,8 +536,6 @@ namespace WKAvatarOptimizer.Core
             pastedTree.maxThreshold = oldTree.maxThreshold;
             pastedTree.useAutomaticThresholds = oldTree.useAutomaticThresholds;
 
-            // Recursively duplicate the tree structure
-            // Motions can be directly added as references while trees must be recursively to avoid accidental sharing
             var source = oldTree.children;
             var children = new ChildMotion[source.Length];
             for(int i = 0; i < children.Length; i++)
@@ -566,7 +556,6 @@ namespace WKAvatarOptimizer.Core
                 {
                     var childTree = CloneBlendTree(pastedTree, tree);
                     childMotion.motion = childTree;
-                    // need to save the blend tree into the animator
                     childTree.hideFlags = HideFlags.HideInHierarchy;
                     AssetDatabase.AddObjectToAsset(childTree, assetPath);
                 }
@@ -594,7 +583,6 @@ namespace WKAvatarOptimizer.Core
             {
                 using (var targetSO = new SerializedObject(target))
                 {
-                    // copy the Normalized Blend Values toggle via serialized object since no api exists for it
                     var sourceProperty = sourceSO.FindProperty("m_NormalizedBlendValues");
                     var targetProperty = targetSO.FindProperty("m_NormalizedBlendValues");
                     targetProperty.boolValue = sourceProperty.boolValue;
@@ -753,7 +741,6 @@ namespace WKAvatarOptimizer.Core
             var oldAnimatorsByChildren = new Dictionary<AnimatorStateMachine, AnimatorStateMachine>();
             List<AnimatorStateMachine> oldStateMachines = GetStateMachinesRecursive(old, oldAnimatorsByChildren);
             List<AnimatorStateMachine> newStateMachines = GetStateMachinesRecursive(n, newAnimatorsByChildren);
-            // Generate state transitions
             for (int i = 0; i < oldStates.Count; i++)
             {
                 foreach (var transition in oldStates[i].transitions)
@@ -813,7 +800,6 @@ namespace WKAvatarOptimizer.Core
                             ApplyTransitionSettings(transition, newTransition);
                     }
                 }
-                // Generate AnyState transitions
                 GenerateStateMachineBaseTransitions(oldStateMachines[i], newStateMachines[i], oldStates, newStates, oldStateMachines, newStateMachines);
             }
         }
@@ -843,7 +829,6 @@ namespace WKAvatarOptimizer.Core
                     ApplyTransitionSettings(transition, newTransition);
             }
 
-            // Generate EntryState transitions
             foreach (var transition in old.entryTransitions)
             {
                 AnimatorTransition newTransition = null;

@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using UnityEngine;
 
 namespace WKAvatarOptimizer.Core.Util
 {
@@ -76,10 +75,6 @@ namespace WKAvatarOptimizer.Core.Util
 
         public static void PrintTimeUsed()
         {
-            foreach (var line in FormatTimeUsed())
-            {
-                Debug.Log(line);
-            }
         }
     }
 }

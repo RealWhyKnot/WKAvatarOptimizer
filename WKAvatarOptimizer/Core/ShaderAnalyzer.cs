@@ -94,7 +94,6 @@ namespace WKAvatarOptimizer.Core
             public string name;
             public int startLineIndex;
             public int lineCount;
-            // relative to the start of the pass
             public int codeBlockStartIndex;
             public int codeBlockLineCount;
         }
@@ -444,7 +443,6 @@ namespace WKAvatarOptimizer.Core
                 }
                 else if (File.Exists(Path.Combine(EditorApplication.applicationContentsPath, $"CGIncludes\\{fileName}")))
                 {
-                    // we don't want to include and parse unity cg includes
                     return false;
                 }
                 if (alreadyIncludedThisPass.Contains(fileID))
@@ -462,7 +460,6 @@ namespace WKAvatarOptimizer.Core
                 {
                     rawLines = File.ReadAllLines(currentFilePath);
                     if (fileName == "UnityLightingCommon.cginc") {
-                        // UnityLightingCommon.cginc has two fixed4 declarations which won't work in HLSLPROGRAM since it's a type defined in HLSLSupport.cginc
                         rawLines = rawLines.Select(l => l.Replace("fixed4", "float4")).ToArray();
                     }
                 }
@@ -470,8 +467,6 @@ namespace WKAvatarOptimizer.Core
                 {
                     if (isTopLevelFile)
                     {
-                        // unity shader files are not assets in the project so we just throw the error again to mark
-                        // the parsed shader as failed to read
                         throw new ParserException("This is a unity build in shader. It is not a normal asset and can't be read.");
                     }
                     if (fileName != "UnityLightingCommon.cginc")
@@ -482,12 +477,8 @@ namespace WKAvatarOptimizer.Core
                 {
                     if (isTopLevelFile)
                     {
-                        // unity shader files are not assets in the project so we just throw the error again to mark
-                        // the parsed shader as failed to read
                         throw new ParserException("This is a unity build in shader. It is not a normal asset and can't be read.");
                     }
-                    // happens for example if audio link is not in the project but the shader has a reference to the include file
-                    // returning false here will cause the #include directive to be kept in the shader instead of getting inlined
                     Debug.LogWarning("Could not find directory for include file: " + currentFilePath);
                     return false; 
                 }
@@ -624,7 +615,6 @@ namespace WKAvatarOptimizer.Core
                 {
                     processedLines.Add(trimmedLine);
                     alreadyIncludedThisPass.Clear();
-                    // include UnityLightingCommon.cginc at the start of each code block since that declares _SpecColor and we don't want to just include all unity cg includes
                     RecursiveParseFile("UnityLightingCommon.cginc", false, currentFilePath);
                     processedLines.Add("#include \"UnityLightingCommon.cginc\"");
                     continue;
@@ -678,7 +668,6 @@ namespace WKAvatarOptimizer.Core
                         charIndex++;
                     }
                     if (endInsideTagIndex - startInsideTagIndex <= 10) {
-                        // currently we only care about [hdr], [gamma] & [donotlock] tags
                         tags.Add(line.Substring(startInsideTagIndex, endInsideTagIndex - startInsideTagIndex));
                     }
                     charIndex++;
@@ -1756,14 +1745,12 @@ namespace WKAvatarOptimizer.Core
                 }
                 if ((seenOnce.Count == 1 && seenMultiple.Count == 1) || values.Count == 2)
                 {
-                    // all values but one are the same, so we can use a ternary operator
                     int index = values.IndexOf(seenOnce.First());
                     var secondValue = values.Count == 2 ? values[1 - index] : seenMultiple.First();
                     output.Add($"{arrayProperty.Key} = WKVRCOptimizer_MaterialID == {index} ? {seenOnce.First()} : {secondValue};");
                 }
                 else if (values.Count <= 32 && seenOnce.Count + seenMultiple.Count == 2)
                 {
-                    // we can use a ternary operator to select between two values based on a bit field
                     var firstValue = seenMultiple.First();
                     var secondValue = seenMultiple.Last();
                     uint bitField = 0;
@@ -1776,7 +1763,6 @@ namespace WKAvatarOptimizer.Core
                 }
                 else
                 {
-                    // we need to index into the array
                     output.Add($"{arrayProperty.Key} = WKVRCOptimizerArray{arrayProperty.Key}[WKVRCOptimizer_MaterialID];");
                 }
             }
@@ -2733,7 +2719,6 @@ namespace WKAvatarOptimizer.Core
             void SkipWhitespace(string s, ref int index) { while (index < s.Length && char.IsWhiteSpace(s[index])) index++; }
             ConditionResult EvalPreprocessorCondition(string expr, ref int index)
             {
-                // hardcoded parse of poiyomi texture prop guards as OPTIMIZER_ENABLED is also rarely used for other cases which could break when properties are not inline replaced
                 if (index == 0 && expr.Length > 44 && expr[0] == 'd' && expr[8] == 'P') {
                     var match = Regex.Match(expr, @"defined\((PROP\w+)\) || !defined\(OPTIMIZER_ENABLED\)");
                     if (match.Success) {
@@ -2742,7 +2727,6 @@ namespace WKAvatarOptimizer.Core
                         return ConditionResult.Unknown;
                     }
                 }
-                // parse flat lists of defined() and !defined() calls that are either all || or all && connected. no nesting.
                 var values = new List<ConditionResult>();
                 bool allAnd = false;
                 bool allOr = false;
@@ -3314,7 +3298,6 @@ namespace WKAvatarOptimizer.Core
                 firstCondition = false;
             }
 
-            // skip all code until matching #endex
             int depth = 0;
             int linesSkipped = 0;
             while (++lineIndex < lines.Count)
@@ -3344,7 +3327,6 @@ namespace WKAvatarOptimizer.Core
         
         static readonly HashSet<string> shaderPropertiesToKeep = new HashSet<string>()
         {
-            // copied by vrchat shader fallback system
             "_MainTex",
             "_MetallicGlossMap",
             "_SpecGlossMap",
@@ -3377,7 +3359,6 @@ namespace WKAvatarOptimizer.Core
             "_DstBlend",
             "_ZWrite",
 
-            // particle systems with skinned mesh renderer as source might inherit these
             "_TintColor",
         };
 

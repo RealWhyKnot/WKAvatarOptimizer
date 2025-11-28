@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 using UnityEditor;
 using WKAvatarOptimizer.Core;
 using WKAvatarOptimizer.Core.Util;
@@ -127,7 +126,7 @@ namespace WKAvatarOptimizer.Editor
                     var mesh = renderers[0].GetSharedMesh();
                     optimizedTotalMaterialCount += mesh == null ? 0 : mesh.subMeshCount;
                 }
-                else // ParticleSystemRenderer & TrailRenderer
+                else
                 {
                     optimizedTotalMaterialCount += 1;
                 }
@@ -136,11 +135,9 @@ namespace WKAvatarOptimizer.Editor
             PerfRankChangeLabel("Mesh Renderers", meshCount, optimizedMeshCount, PerformanceCategory.MeshCount);
             PerfRankChangeLabel("Material Slots", totalMaterialCount, optimizedTotalMaterialCount, PerformanceCategory.MaterialCount);
             
-            // Assuming OptimizeFXLayer is effectively true by default
             if (optimizer.GetFXLayer() != null)
             {
                 var nonErrors = new HashSet<string>() {"toggle", "motion time", "blend tree", "multi toggle"};
-                // Force optimizeFXLayer logic as true for preview since we default it to true
                 var mergedLayerCount = optimizer.AnalyzeFXLayerMergeAbility().Count(list => list.All(e => nonErrors.Contains(e)));
                 var layerCount = optimizer.GetFXLayerLayers().Length;
                 var optimizedLayerCount = mergedLayerCount > 1 ? layerCount - mergedLayerCount + 1 : layerCount;
@@ -498,8 +495,6 @@ namespace WKAvatarOptimizer.Editor
             stopWatch.Stop();
             if (stopWatch.ElapsedMilliseconds > longestTimeUsed && stopWatch.ElapsedMilliseconds > AutoRefreshPreviewTimeout)
             {
-                // longestTimeUsed < 0 means it's one of the first times the optimizer is used
-                // first couple times are always slower since the JIT compiler has to compile the code
                 longestTimeUsed = longestTimeUsed < 0 ? longestTimeUsed + 1 : stopWatch.ElapsedMilliseconds;
             }
         }
@@ -821,7 +816,7 @@ namespace WKAvatarOptimizer.Editor
             {
                 if (keptBlendShapePathsCache == null)
                 {
-                    optimizer.ProcessBlendShapes(); // This populates optimizer.context.usedBlendShapes
+                    optimizer.ProcessBlendShapes();
 
                     var skinnedMeshes = optimizer.GetUsedComponentsInChildren<SkinnedMeshRenderer>();
                     keptBlendShapePathsCache = new HashSet<string>(skinnedMeshes.SelectMany(r => {
@@ -1054,10 +1049,8 @@ namespace WKAvatarOptimizer.Editor
         {
             using (var serializedObject = new SerializedObject(obj))
             {
-                // Find the SerializedProperty representing the list of Transforms
                 SerializedProperty listProperty = serializedObject.FindProperty(propertyPath);
 
-                // Add a null element at the end of the list for the user to add new elements
                 listProperty.InsertArrayElementAtIndex(listProperty.arraySize);
                 SerializedProperty newElement = listProperty.GetArrayElementAtIndex(listProperty.arraySize - 1);
                 newElement.objectReferenceValue = null;
@@ -1094,7 +1087,6 @@ namespace WKAvatarOptimizer.Editor
                     element.objectReferenceValue = output;
                 }
 
-                // Remove any null elements from the list
                 for (int i = listProperty.arraySize - 1; i >= 0; i--)
                 {
                     SerializedProperty element = listProperty.GetArrayElementAtIndex(i);
@@ -1104,7 +1096,6 @@ namespace WKAvatarOptimizer.Editor
                     }
                 }
 
-                // Apply the modified properties to the serializedObject
                 serializedObject.ApplyModifiedProperties();
             }
         }

@@ -17,15 +17,13 @@ namespace WKAvatarOptimizer.Core
     {
         private readonly OptimizationContext context;
         private readonly CacheManager cacheManager;
-        private readonly Settings settings;
         private readonly GameObject root;
         private readonly AvatarOptimizer mainInstance;
 
-        public MeshOptimizer(OptimizationContext context, CacheManager cacheManager, Settings settings, GameObject root, AvatarOptimizer mainInstance)
+        public MeshOptimizer(OptimizationContext context, CacheManager cacheManager, GameObject root, AvatarOptimizer mainInstance)
         {
             this.context = context;
             this.cacheManager = cacheManager;
-            this.settings = settings;
             this.root = root;
             this.mainInstance = mainInstance;
         }
@@ -84,7 +82,7 @@ namespace WKAvatarOptimizer.Core
             if (candidate.GetComponent<UnityEngine.Cloth>() != null) {
                 return false;
             }
-            if (candidate is MeshRenderer && (candidate.gameObject.layer == 12 || !settings.MergeStaticMeshesAsSkinned)) {
+            if (candidate is MeshRenderer && candidate.gameObject.layer == 12) {
                 return false;
             }
             if (candidate.GetSharedMesh() == null) {
@@ -96,11 +94,9 @@ namespace WKAvatarOptimizer.Core
             if (GetParticleSystemsUsingRenderer(candidate).Any(ps => !ps.shape.useMeshMaterialIndex || candidate is MeshRenderer)) {
                 return false;
             }
-            // check if any material is null
             if (candidate.sharedMaterials.Any(m => m == null)) {
                 return false;
             }
-            // check if any material has a shader that is not supported
             if (candidate.sharedMaterials.Any(m => !AvatarOptimizer.IsMaterialReadyToCombineWithOtherMeshes(m))) {
                 return false;
             }
@@ -294,9 +290,6 @@ namespace WKAvatarOptimizer.Core
 
         public bool CanCombineRendererWith(List<Renderer> list, Renderer candidate)
         {
-            if (!settings.MergeSkinnedMeshes) {
-                return false;
-            }
             if (list[0].gameObject.layer != candidate.gameObject.layer) {
                 return false;
             }
@@ -325,19 +318,16 @@ namespace WKAvatarOptimizer.Core
             if (OneOfParentsHasGameObjectToggleThatTheOthersArentChildrenOf(candidate.transform, list.Select(r => GetPathToRoot(r.transform.parent)).ToArray())) {
                 return false;
             }
-            if (settings.MergeSkinnedMeshesSeparatedByDefaultEnabledState)
-            {
-                bool candidateDefaultEnabledState = GetRendererDefaultEnabledState(candidate);
-                if (list.Any(r => GetRendererDefaultEnabledState(r) != candidateDefaultEnabledState)) {
-                    return false;
-                }
+
+            bool candidateDefaultEnabledState = GetRendererDefaultEnabledState(candidate);
+            if (list.Any(r => GetRendererDefaultEnabledState(r) != candidateDefaultEnabledState)) {
+                return false;
             }
+            
             if (CanCombineRendererWithBasicMerge(list, candidate, true)) {
                 return true;
             }
-            if (mainInstance.settings.MergeSkinnedMeshesWithShaderToggle == 0) {
-                return false;
-            }
+
             if (!IsShaderToggleCombinableRenderer(candidate)) {
                 return false;
             }
@@ -380,9 +370,6 @@ namespace WKAvatarOptimizer.Core
         private Dictionary<string, bool> cache_CanUseNaNimationOnMesh = null;
         public bool CanUseNaNimationOnMesh(string meshPath)
         {
-            if (mainInstance.settings.MergeSkinnedMeshesWithNaNimation == 0) {
-                return false;
-            }
             if (cache_CanUseNaNimationOnMesh == null)
             {
                 cache_CanUseNaNimationOnMesh = new Dictionary<string, bool>();
@@ -422,7 +409,7 @@ namespace WKAvatarOptimizer.Core
                 return;
             }
             context.newAnimationPaths[source] = target;
-            if (settings.MergeStaticMeshesAsSkinned && source.type == typeof(SkinnedMeshRenderer))
+            if (source.type == typeof(SkinnedMeshRenderer))
             {
                 source.type = typeof(MeshRenderer);
                 context.newAnimationPaths[source] = target;
@@ -454,7 +441,6 @@ namespace WKAvatarOptimizer.Core
             if (cache_FindSameAnimatedMaterialProperties == null) {
                 cache_FindSameAnimatedMaterialProperties = new Dictionary<(string a, string b), HashSet<string>>();
             }
-            // Normalize paths for caching
             string normalizedAPath = aPath;
             string normalizedBPath = bPath;
             if (normalizedAPath.CompareTo(normalizedBPath) > 0) {
@@ -585,7 +571,6 @@ namespace WKAvatarOptimizer.Core
                 context.oldPathToMergedPath.Clear();
                 var exclusions = mainInstance.componentOptimizer.GetAllExcludedTransforms();
                 
-                // Using delegated method
                 context.movingParentMap = mainInstance.componentOptimizer.FindMovingParent();
 
                 context.materialSlotRemap = new Dictionary<(string, int), (string, int)>();
@@ -687,7 +672,7 @@ namespace WKAvatarOptimizer.Core
                     var targetBounds = combinableSkinnedMeshes[0].localBounds;
                     var targetRootBone = combinableSkinnedMeshes[0].rootBone == null ? combinableSkinnedMeshes[0].transform : combinableSkinnedMeshes[0].rootBone;
                     
-                    if ((mainInstance.settings.MergeSkinnedMeshesWithNaNimation != 0) && basicMergedMeshes.Count > 1)
+                    if (basicMergedMeshes.Count > 1)
                     {
                         var animator = root.GetComponent<Animator>();
                         if (animator != null && animator.isHuman)
@@ -721,7 +706,6 @@ namespace WKAvatarOptimizer.Core
                     foreach (SkinnedMeshRenderer skinnedMesh in basicMergedMeshesList)
                     {
                         currentMeshCount++;
-                        //mainInstance.DisplayProgressBar($"Combining mesh ({{++currentMeshCount}}/{{totalMeshCount}}) {{skinnedMesh.name}}");
 
                         bindPoseMeshID++;
                         var blobMeshID = basicMergedMeshes.FindIndex(blob => blob.Contains(skinnedMesh));
@@ -759,7 +743,7 @@ namespace WKAvatarOptimizer.Core
                         targetBounds.Encapsulate(m.MultiplyPoint3x4(aabb.extents.Multiply(-1, -1, -1) + aabb.center));
                         Transform NaNimationBone = null;
                         int NaNimationBoneIndex = -1;
-                        if ((mainInstance.settings.MergeSkinnedMeshesWithNaNimation != 0) && basicMergedMeshes.Count > 1
+                        if (basicMergedMeshes.Count > 1
                                 && mainInstance.FindAllRendererTogglePaths().Contains(currentMeshPath)
                                 && this.CanUseNaNimationOnMesh(currentMeshPath))
                         {
@@ -779,10 +763,10 @@ namespace WKAvatarOptimizer.Core
                             NaNimationBone.localScale = Vector3.one;
                             NaNimationBoneIndex = AddNewBone(NaNimationBone, NaNimationBone.worldToLocalMatrix);
                             string key = "NaNimation";
-                            if (mainInstance.settings.MergeSkinnedMeshesWithShaderToggle != 0)
-                            {
-                                key += $";{blobMeshID};{newPath}";
-                            }
+                            // if (mainInstance.settings.MergeSkinnedMeshesWithShaderToggle != 0) always true
+                            
+                            key += $";{blobMeshID};{newPath}";
+                            
                             AddAnimationPathChange((currentMeshPath, "m_IsActive", typeof(GameObject)), (NaNimationBone.GetPathToRoot(root.transform), key, typeof(Transform)));
                             AddAnimationPathChange((currentMeshPath, "m_Enabled", typeof(SkinnedMeshRenderer)), (NaNimationBone.GetPathToRoot(root.transform), key, typeof(Transform)));
                             var curveBinding = EditorCurveBinding.FloatCurve(newPath, typeof(SkinnedMeshRenderer), "m_UpdateWhenOffscreen");
@@ -792,7 +776,7 @@ namespace WKAvatarOptimizer.Core
                             targetBounds.Encapsulate(toLocal.MultiplyPoint3x4(avDescriptor.ViewPosition + Vector3.forward * 0.3f + Vector3.right * 0.2f));
                             targetBounds.Encapsulate(toLocal.MultiplyPoint3x4(avDescriptor.ViewPosition + Vector3.forward * 0.3f - Vector3.right * 0.2f));
                         }
-                        else if (basicMergedMeshes.Count > 1 && (mainInstance.settings.MergeSkinnedMeshesWithShaderToggle != 0))
+                        else if (basicMergedMeshes.Count > 1) // && (mainInstance.settings.MergeSkinnedMeshesWithShaderToggle != 0) always true
                         {
                             AddAnimationPathChange((currentMeshPath, "m_IsActive", typeof(GameObject)),
                                     (newPath, "material._IsActiveMesh" + blobMeshID, typeof(SkinnedMeshRenderer)));
@@ -982,16 +966,11 @@ namespace WKAvatarOptimizer.Core
                     var usedBlendShapesInCombinedMesh = new HashSet<string>(
                         context.usedBlendShapes.Where(s => combinableMeshPaths.Contains(s.Substring(0, s.IndexOf("/blendShape.")))));
                     var allMergedBlendShapes = new List<List<(string blendshape, float weight)>>();
-                    if (settings.MergeSameRatioBlendShapes)
-                    {
-                        allMergedBlendShapes.AddRange(mainInstance.FindMergeableBlendShapes(basicMergedMeshesList));
-                        var usedBlendShapesInMergedBlobs = new HashSet<string>(allMergedBlendShapes.SelectMany(s => s).Select(s => s.blendshape));
-                        allMergedBlendShapes.AddRange(usedBlendShapesInCombinedMesh.Where(s => !usedBlendShapesInMergedBlobs.Contains(s)).Select(s => new List<(string blendshape, float weight)> { (s, 1) }));
-                    }
-                    else
-                    {
-                        allMergedBlendShapes.AddRange(usedBlendShapesInCombinedMesh.Select(s => new List<(string blendshape, float weight)> { (s, 1) }));
-                    }
+                    
+                    allMergedBlendShapes.AddRange(mainInstance.FindMergeableBlendShapes(basicMergedMeshesList));
+                    var usedBlendShapesInMergedBlobs = new HashSet<string>(allMergedBlendShapes.SelectMany(s => s).Select(s => s.blendshape));
+                    allMergedBlendShapes.AddRange(usedBlendShapesInCombinedMesh.Where(s => !usedBlendShapesInMergedBlobs.Contains(s)).Select(s => new List<(string blendshape, float weight)> { (s, 1) }));
+                    
                     var vertexOffset = new List<int>() {0};
                     for (int i = 0; i < basicMergedMeshesList.Count - 1; i++)
                     {
@@ -1124,7 +1103,7 @@ namespace WKAvatarOptimizer.Core
                     }
 
                     var sameAnimatedProperties = GetSameAnimatedPropertiesOnMergedMesh(newPath);
-                    if (basicMergedMeshes.Count > 1 && (mainInstance.settings.MergeSkinnedMeshesWithShaderToggle != 0)) {
+                    if (basicMergedMeshes.Count > 1) {
                         var pathA = basicMergedMeshes[0][0].transform.GetPathToRoot(root.transform);
                         sameAnimatedProperties.UnionWith(FindSameAnimatedMaterialProperties(pathA, basicMergedMeshes[1][0].transform.GetPathToRoot(root.transform)));
                         for (int blobMeshID = 2; blobMeshID < basicMergedMeshes.Count; blobMeshID++) {
@@ -1132,7 +1111,7 @@ namespace WKAvatarOptimizer.Core
                         }
                     }
 
-                    for (int blobMeshID = 0; blobMeshID < basicMergedMeshes.Count && basicMergedMeshes.Count > 1 && (mainInstance.settings.MergeSkinnedMeshesWithShaderToggle != 0); blobMeshID++) {
+                    for (int blobMeshID = 0; blobMeshID < basicMergedMeshes.Count && basicMergedMeshes.Count > 1; blobMeshID++) {
                         var skinnedMesh = basicMergedMeshes[blobMeshID][0];
                         var oldPath = skinnedMesh.transform.GetPathToRoot(root.transform);
                         var properties = new MaterialPropertyBlock();
@@ -1223,7 +1202,6 @@ namespace WKAvatarOptimizer.Core
                             subContainer.transform.localScale = Vector3.one;
                             subContainer.SetActive(targetRenderer.gameObject.activeSelf);
                             
-                            // Map all merged meshes to the subContainer to preserve component animations
                             foreach (var renderer in basicMergedMeshesList)
                             {
                                 context.transformFromOldPath[renderer.transform.GetPathToRoot(root.transform)] = subContainer.transform;
@@ -1243,7 +1221,6 @@ namespace WKAvatarOptimizer.Core
                         }
                         else
                         {
-                            // Map all merged meshes to the targetRenderer object if no subContainer was created
                             foreach (var renderer in basicMergedMeshesList)
                             {
                                 context.transformFromOldPath[renderer.transform.GetPathToRoot(root.transform)] = go.transform;
@@ -1252,7 +1229,7 @@ namespace WKAvatarOptimizer.Core
                             context.pathsToDeleteGameObjectTogglesOn.Add(go.transform.GetPathToRoot(root.transform));
                         }
 
-                        if (settings.MergeSkinnedMeshesSeparatedByDefaultEnabledState && !GetRendererDefaultEnabledState(targetRenderer))
+                        if (!GetRendererDefaultEnabledState(targetRenderer))
                         {
                             targetRenderer.gameObject.SetActive(true);
                             targetRenderer.enabled = false;
@@ -1281,13 +1258,12 @@ namespace WKAvatarOptimizer.Core
                 root.transform.position = originalRootPosition;
                 root.transform.rotation = originalRootRotation;
 
-                // flush particle system cache since we merged meshes
                 cache_ParticleSystemsUsingRenderer = null;
             }
             catch (System.Exception e)
             {
                 Debug.LogError($"[MeshOptimizer] An error occurred during CombineSkinnedMeshes: {e.Message}\n{e.StackTrace}");
-                throw; // Re-throw the exception to ensure it's still propagated.
+                throw;
             }
         }
         public HashSet<SkinnedMeshRenderer> FindAllUnusedSkinnedMeshRenderers()
@@ -1322,9 +1298,6 @@ namespace WKAvatarOptimizer.Core
 
         public void ConvertStaticMeshesToSkinnedMeshes()
         {
-            if (!settings.MergeStaticMeshesAsSkinned) {
-                return;
-            }
             var staticMeshes = root.GetComponentsInChildren<MeshFilter>(true)
                 .Where(f => f.sharedMesh != null && f.gameObject.GetComponent<MeshRenderer>() != null)
                 .Where(f => f.gameObject.layer != 12)

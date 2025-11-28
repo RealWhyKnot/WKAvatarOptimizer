@@ -135,7 +135,6 @@ public class ShaderAnalyzerDebugger : EditorWindow
         {
             scrollPos = EditorGUILayout.BeginScrollView(scrollPos);
             EditorGUILayout.LabelField("Total Shaders in Folder: " + shaders.Count);
-            // time the parsing
             timer = Stopwatch.StartNew();
             var parsedShaders = ShaderAnalyzer.ParseAndCacheAllShaders(shaders, false);
             timer.Stop();
