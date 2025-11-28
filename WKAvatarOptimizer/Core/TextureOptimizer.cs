@@ -60,7 +60,7 @@ namespace WKAvatarOptimizer.Core
 
             bool changed = false;
             List<string> changes = new List<string>();
-            context.Log($"[TextureOptimizer] Processing texture {index}/{total}: {tex.name}. Original mipmapEnabled: {importer.mipmapEnabled}, mipmapCount: {tex.mipmapCount}, format: {tex.format}");
+            context.Log($"[TextureOptimizer] Processing texture {index}/{total}: {tex.name}. Original mipmapEnabled: {importer.mipmapEnabled}, mipmapCount: {tex.mipmapCount}, format: {tex.format}, sRGB: {importer.sRGBTexture}");
 
             if (!importer.mipmapEnabled)
             {

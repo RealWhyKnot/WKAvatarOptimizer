@@ -606,13 +606,20 @@ namespace WKAvatarOptimizer.Core
                 {
                     if (!source.HasProperty(prop))
                         continue;
-                    mat.SetFloat(prop, source.GetFloat(prop));
+                    float val = source.GetFloat(prop);
+                    // context.Log($"[MaterialOptimizer] Setting float {prop} on {mat.name} to {val}"); // Uncomment for spam
+                    mat.SetFloat(prop, val);
                 }
                 foreach (var prop in optimizedShader.colorProperties)
                 {
                     if (!source.HasProperty(prop))
                         continue;
-                    mat.SetColor(prop, source.GetColor(prop));
+                    Color col = source.GetColor(prop);
+                    if (prop == "_Color")
+                    {
+                        context.Log($"[MaterialOptimizer] Setting color {prop} on {mat.name} to {col}");
+                    }
+                    mat.SetColor(prop, col);
                 }
                 foreach (var prop in optimizedShader.integerProperties)
                 {

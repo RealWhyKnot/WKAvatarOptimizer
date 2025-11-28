@@ -96,39 +96,29 @@ The optimizer runs a sequence of automated passes on your avatar during the buil
 
 ## Known Issues & Debugging
 
-### Invisible Meshes (Current Priority - Debugging Grayscale Textures)
-**Status:** Ongoing Investigation
+### Invisible Meshes / Broken Textures (Grayscale/Incorrect) in Play Mode
+**Status:** **Actively Debugging**
+
 **Symptoms:**
-*   **Initial:** Meshes are completely invisible after optimization.
-*   **After Fix 1 (Keyword Injection):** Meshes become visible (can be toggled on/off) but their textures appear grayscale or broken, particularly when in Play Mode in Unity. Exiting Play Mode shows textures correctly.
+*   Some meshes remain completely invisible after optimization.
+*   Other meshes are visible but their textures appear grayscale, desaturated, or incorrect (e.g., Normal Map colors) when in Play Mode. They appear correct in the Editor (Edit Mode).
 
-**Root Causes & Diagnosis:**
+**Diagnosis & Root Cause Identification:**
 
-1.  **Invisible Meshes (Addressed):**
-    *   **Original Problem:** Complex shaders (like Poiyomi) often define keywords (`#pragma shader_feature`) within nested `#include` files. The `ShaderAnalyzer` historically missed these, leading to `MaterialOptimizer` filtering out valid keywords. Consequently, `ShaderOptimizer` received an empty keyword list and failed to inject `#define` statements into the generated shader. This resulted in conditional code blocks (`#ifdef`) evaluating incorrectly and breaking shader logic, causing geometry to be invisible.
-    *   **Fix Implemented:** `MaterialOptimizer.cs` was updated to pass *all* enabled keywords from the material to the `ShaderOptimizer`, ensuring that `#define KEYWORD 1` statements are always injected for active keywords, regardless of whether `ShaderAnalyzer` initially detected them. This should resolve the core "invisibility" issue.
+1.  **Invisible Meshes (Re-diagnosis):**
+    *   **Original Fix Attempt:** Previously, the issue was believed to stem from `ShaderAnalyzer.ParseCodeLinesRecursive` failing to detect `CGPROGRAM` due to whitespace. A fix was implemented to use `line.Trim()`.
+    *   **New Discovery:** Further investigation revealed that the `ShaderAnalyzer.Run` method (which calls `ParseCodeLinesRecursive`) *also* had a whitespace-sensitive check for `CGPROGRAM` (and `HLSLPROGRAM`). This meant that for any shaders with indented `CGPROGRAM` blocks (which is common), the entire code block was being bypassed by the parser. Consequently, none of the keyword injections or texture array wrapper modifications were being applied to these shaders, leading to continued invisibility for affected meshes.
 
 2.  **Grayscale/Broken Textures in Play Mode (Under Investigation):**
-    *   **Symptom Detail:** This issue specifically manifests in Play Mode. Textures appear desaturated or incorrect, but render correctly outside of Play Mode. This strongly suggests a runtime material/shader property issue or an interaction with Unity's internal rendering pipeline.
-    *   **Initial Analysis:**
-        *   **Texture Arrays:** The optimizer aggressively converts textures into `Texture2DArray`s for merging. If `_MainTex` (or other textures) are grayscale, it could be due to:
-            *   Incorrect binding of the `Texture2DArray` to the material.
-            *   Wrong texture format or sRGB settings for the array.
-            *   Issues with UV coordinates not correctly sampling the array slice.
-            *   Shader sampling logic for the `Texture2DArray` might be flawed during runtime.
-        *   **Mipmap Generation:** Lack of proper mipmaps, or mipmap generation issues, can sometimes cause blurry or desaturated textures at runtime, especially at different viewing distances.
-    *   **Fixes Implemented (for investigation):**
-        *   **Force Mipmaps:** `MaterialOptimizer.cs` was updated to explicitly force mipmap generation for all `Texture2DArray`s created, regardless of the source texture's `mipmapCount`.
-        *   **Enhanced Logging:**
-            *   `MaterialOptimizer.cs` now logs the *exact* list of keywords being collected from the material (`shaderKeywords`).
-            *   `MaterialOptimizer.cs` now logs when a texture is added to the `texturesToMerge` list, confirming its eligibility for `Texture2DArray` conversion.
-            *   `TextureOptimizer.cs` now logs the original `mipmapEnabled` state, `mipmapCount`, and `format` for each texture processed.
-            *   (Previous attempt to add debug logs to `ShaderOptimizer.cs` about injected keywords was seemingly not reflected in previous `TrashBin` output, possibly due to build mismatch).
+    *   This issue likely persists due to the underlying parsing failure described above. Once the shader code blocks are correctly processed, the grayscale issue might resolve itself, as proper keyword injection and texture handling will be applied.
+
+**Latest Fix Implemented:**
+*   **`ShaderAnalyzer.cs` (in `Run` method):** Modified the `CGPROGRAM` detection logic to be robust against leading whitespace (`line.Trim() == "CGPROGRAM"`). This ensures that the shader's code block is properly parsed and all subsequent optimizations (keyword injection, texture array wrappers) are applied.
 
 **Next Steps for Debugging:**
-The provided Unity Editor log (`TrashBin/output.txt`, if available) should be meticulously checked for any shader compilation warnings or errors, or runtime messages related to materials or textures. The new, detailed logs generated by `WKAvatarOptimizer_Log.txt` must be examined to verify:
-*   That the correct keywords are indeed being passed and injected into the generated shader.
+The provided Unity Editor log (`TrashBin/output.txt`, if available) should be meticulously checked for any shader compilation warnings or errors, or runtime messages related to materials or textures. The new, detailed logs generated by `WKAvatarOptimizer_Log.txt` must be examined after running a build with this latest fix to verify:
+*   **Crucially, that the debug logs for injected keywords are now visible within the generated shader files.** This will confirm the `CGPROGRAM` detection fix is working.
 *   That textures intended for `Texture2DArray`s are correctly identified and processed.
-*   That mipmaps are being generated as expected.
-
-Further investigation will focus on the interaction between the generated `Texture2DArray`s, material properties, and runtime shader behavior, especially regarding `sRGB` conversion and texture sampling.
+*   The `sRGB` status of the affected textures.
+*   The `_Color` values being set on the optimized materials.
+*   Any discrepancies between working and broken materials.

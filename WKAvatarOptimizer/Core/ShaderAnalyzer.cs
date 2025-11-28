@@ -3063,7 +3063,7 @@ namespace WKAvatarOptimizer.Core
                 if (line == endSymbol)
                     return;
                 
-                if (line == "CGPROGRAM" || line == "HLSLPROGRAM")
+                if (line.Trim() == "CGPROGRAM" || line.Trim() == "HLSLPROGRAM")
                 {
                     output.Add(line);
                     output.Add($"// Debug: Pass keywords: {string.Join(", ", currentPass.shaderFeatureKeyWords)}");
@@ -3525,7 +3525,7 @@ namespace WKAvatarOptimizer.Core
                     }
                 }
                 output.Add(line);
-                if (line == "CGPROGRAM" || line == "HLSLPROGRAM")
+                if (line.Trim() == "CGPROGRAM" || line.Trim() == "HLSLPROGRAM")
                 {
                     vertexInUv0Member = "texcoord";
                     texturesToCallSoTheSamplerDoesntDisappear.Clear();
