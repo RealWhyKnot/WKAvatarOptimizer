@@ -74,16 +74,12 @@ namespace WKAvatarOptimizer.Core.Native
         new uint AddRef();
         new uint Release();
 
-        // 3: CreateBlobFromBlob
         void CreateBlobFromBlob();
 
-        // 4: CreateBlobFromPinned
         void CreateBlobFromPinned();
 
-        // 5: MoveToBlob
         void MoveToBlob();
 
-        // 6: CreateBlob
         [PreserveSig]
         int CreateBlob(
             IntPtr pText,
@@ -92,31 +88,22 @@ namespace WKAvatarOptimizer.Core.Native
             out IDxcBlobEncoding ppResult
         );
 
-        // 7: LoadFile
         void LoadFile();
 
-        // 8: CreateReadOnlyStreamFromBlob
         void CreateReadOnlyStreamFromBlob();
 
-        // 9: CreateDefaultIncludeHandler
         void CreateDefaultIncludeHandler();
 
-        // 10: GetBlobAsUtf8
         void GetBlobAsUtf8();
 
-        // 11: GetBlobAsWide
         void GetBlobAsWide();
 
-        // 12: GetDxilContainerPart
         void GetDxilContainerPart();
 
-        // 13: CreateReflection
         void CreateReflection();
 
-        // 14: BuildArguments
         void BuildArguments();
 
-        // 15: GetPDBContents
         void GetPDBContents();
     }
 
@@ -129,7 +116,6 @@ namespace WKAvatarOptimizer.Core.Native
         new uint AddRef();
         new uint Release();
 
-        // 3: Compile
         [PreserveSig]
         int Compile(
             [In] ref DxcBuffer pSource,
@@ -138,10 +124,9 @@ namespace WKAvatarOptimizer.Core.Native
             uint argCount,
             IntPtr pIncludeHandler,
             ref Guid riid,
-            out IntPtr ppResult // IDxcResult
+            out IntPtr ppResult
         );
 
-        // 4: Disassemble
         void Disassemble();
     }
 
@@ -154,23 +139,18 @@ namespace WKAvatarOptimizer.Core.Native
         new uint AddRef();
         new uint Release();
 
-        // 3: GetStatus
         [PreserveSig]
         int GetStatus(out int pStatus);
 
-        // 4: GetResult (Primary Output)
         [PreserveSig]
         int GetResult(out IDxcBlob ppResult);
 
-        // 5: GetErrorBuffer
         [PreserveSig]
         int GetErrorBuffer(out IDxcBlobEncoding ppErrors);
 
-        // 6: HasOutput
         [PreserveSig]
         int HasOutput(uint index, out int pHasOutput);
 
-        // 7: GetOutput
         [PreserveSig]
         int GetOutput(
             uint index,
@@ -184,11 +164,9 @@ namespace WKAvatarOptimizer.Core.Native
 
     #region Classes
 
-    // CLSID_DxcCompiler: 73e22d93-e6ce-47f3-b5bf-f0664f39c1b0
     [Guid("73e22d93-e6ce-47f3-b5bf-f0664f39c1b0")] 
     internal class DxcCompilerClass { }
 
-    // CLSID_DxcUtils: 6245d6af-66e0-48fd-80b4-4d271796748c
     [Guid("6245d6af-66e0-48fd-80b4-4d271796748c")] 
     internal class DxcUtilsClass { }
 
@@ -213,10 +191,8 @@ namespace WKAvatarOptimizer.Core.Native
         {
             try
             {
-                // Try loading from plugins folder first
                 if (TryLoadFromPluginsFolder()) return;
 
-                // Fallback to temp folder
                 string tempFolder = Path.Combine(Path.GetTempPath(), "WKAvatarOptimizer_Runtime");
                 if (!Directory.Exists(tempFolder))
                 {
@@ -243,7 +219,7 @@ namespace WKAvatarOptimizer.Core.Native
                             }
                         }
                     }
-                    catch (IOException) { /* File in use, ignore */ }
+                    catch (IOException) {}
                 }
 
                 string dxilPath = Path.Combine(tempFolder, "dxil.dll");
@@ -263,12 +239,10 @@ namespace WKAvatarOptimizer.Core.Native
             try {
                 var assembly = Assembly.GetExecutingAssembly();
                 var assemblyDir = Path.GetDirectoryName(assembly.Location);
-                // When in Editor, assembly might be in Library/ScriptAssemblies, need to find Assets path
-                // This is heuristic.
                 string[] searchPaths = {
                     Path.Combine(assemblyDir, "Plugins", "x86_64"),
                     Path.Combine(Directory.GetCurrentDirectory(), "Assets", "WKAvatarOptimizer", "Plugins", "x86_64"),
-                    Path.Combine(Directory.GetCurrentDirectory(), "Packages", "com.wk.avataroptimizer", "Plugins", "x86_64") // Speculative
+                    Path.Combine(Directory.GetCurrentDirectory(), "Packages", "com.wk.avataroptimizer", "Plugins", "x86_64")
                 };
 
                 foreach (var path in searchPaths)
@@ -312,7 +286,7 @@ namespace WKAvatarOptimizer.Core.Native
         public bool OutputSpirV { get; set; } = true;
         public bool VulkanLayout { get; set; } = true;
         public string VulkanTarget { get; set; } = "vulkan1.2";
-        public bool Optimization { get; set; } = false; // O0 vs O3
+        public bool Optimization { get; set; } = false;
 
         public string[] ToArguments()
         {
@@ -347,6 +321,8 @@ namespace WKAvatarOptimizer.Core.Native
         public byte[] CompileToSpirV(string source, DxcConfiguration config)
         {
             if (string.IsNullOrEmpty(source)) throw new ArgumentException("Shader source is empty", nameof(source));
+            if (_compiler == null) throw new InvalidOperationException("DXC compiler not initialized");
+            if (_utils == null) throw new InvalidOperationException("DXC utils not initialized");
 
             var sourceBytes = Encoding.UTF8.GetBytes(source);
             IntPtr pSource = Marshal.AllocHGlobal(sourceBytes.Length);
@@ -359,9 +335,9 @@ namespace WKAvatarOptimizer.Core.Native
 
             try
             {
-                // Calling CreateBlob (Slot 6) - Safer as it copies the data
-                int hr = _utils.CreateBlob(pSource, (uint)sourceBytes.Length, 65001 /* UTF8 */, out sourceBlobEncoding);
+                int hr = _utils.CreateBlob(pSource, (uint)sourceBytes.Length, 65001, out sourceBlobEncoding);
                 if (hr != 0) Marshal.ThrowExceptionForHR(hr);
+                if (sourceBlobEncoding == null) throw new Exception("CreateBlob returned null sourceBlobEncoding");
 
                 DxcBuffer sourceBuffer = new DxcBuffer();
                 sourceBuffer.Ptr = sourceBlobEncoding.GetBufferPointer();
@@ -381,8 +357,10 @@ namespace WKAvatarOptimizer.Core.Native
                 );
 
                 if (hr != 0) Marshal.ThrowExceptionForHR(hr);
+                if (pResultPtr == IntPtr.Zero) throw new Exception("Compile returned null result pointer");
 
                 compileResult = (IDxcResult)Marshal.GetObjectForIUnknown(pResultPtr);
+                if (compileResult == null) throw new Exception("Failed to get IDxcResult from pointer");
 
                 int status;
                 compileResult.GetStatus(out status);

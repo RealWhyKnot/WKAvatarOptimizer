@@ -1,5 +1,14 @@
 # Changelog
 
+## v2025.12.04.7
+
+### Fixed
+- **Critical Threading Issue:** Fixed `UnityException: GetName can only be called from the main thread` errors in shader parsing. Pre-fetch all Unity API calls (`shader.name`, `material.name`, `AssetDatabase.GetAssetPath`) on the main thread before starting background tasks in `ShaderAnalyzer`.
+- **Material Property Threading Issue:** Fixed `HasProperty can only be called from the main thread` errors in `CreateFallbackShaderIR` by removing material property copying from the fallback path, as it was called from background threads.
+- **KeyNotFoundException:** Fixed crash when looking up failed shader compilations in cache by using `TryGetValue` with fallback to main thread parsing in `ParseAndCacheAllShaders`.
+- **DXC Null Reference Handling:** Added comprehensive null checks in `DxcCompiler.CompileToSpirV` with specific error messages for debugging: compiler initialization, blob encoding creation, and compilation result validation.
+- **Method Signature Updates:** Updated `ShaderAnalyzer.ParseUniversal` and `UniversalShaderLoader.LoadShader` to accept pre-fetched `shaderName` and `materialName` parameters, ensuring thread-safe shader processing across the entire pipeline.
+
 ## v2025.12.04.6
 
 ### Fixed

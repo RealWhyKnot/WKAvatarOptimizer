@@ -131,7 +131,6 @@ namespace WKAvatarOptimizer.Core.Native
 
         public SPIRVReflector(byte[] spirvBytecode)
         {
-            // Pin the bytecode array and keep it pinned for the lifetime of the reflector
             _pinnedCode = GCHandle.Alloc(spirvBytecode, GCHandleType.Pinned);
             IntPtr pCode = _pinnedCode.AddrOfPinnedObject();
 
@@ -143,7 +142,6 @@ namespace WKAvatarOptimizer.Core.Native
 
             if (result != SpvReflectResult.SPV_REFLECT_RESULT_SUCCESS)
             {
-                // If creation failed, free immediately
                 if (_pinnedCode.IsAllocated) _pinnedCode.Free();
                 throw new Exception($"Failed to create SPIR-V Reflect module: {result}");
             }

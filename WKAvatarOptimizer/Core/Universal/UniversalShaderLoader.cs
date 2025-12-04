@@ -2,8 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
-using UnityEditor; // Required for AssetDatabase
-using System.IO;   // Required for File.ReadAllText
+using UnityEditor;
+using System.IO;
 using WKAvatarOptimizer.Core.Native;
 
 namespace WKAvatarOptimizer.Core.Universal
@@ -17,36 +17,36 @@ namespace WKAvatarOptimizer.Core.Universal
             _dxcCompiler = new DxcCompiler();
         }
 
-        public ShaderIR LoadShader(Shader unityShader, Material sourceMaterial, string shaderPath = null)
+        public ShaderIR LoadShader(Shader unityShader, Material sourceMaterial, string shaderPath, string shaderName, string materialName)
         {
-            if (unityShader == null)
-            {
-                throw new ArgumentNullException(nameof(unityShader));
-            }
-            if (sourceMaterial == null)
-            {
-                throw new ArgumentNullException(nameof(sourceMaterial));
-            }
+            if (unityShader == null) throw new ArgumentNullException(nameof(unityShader));
+            if (sourceMaterial == null) throw new ArgumentNullException(nameof(sourceMaterial));
 
-            // Try to get path if not provided (will fail on background thread, but safe on main)
             if (shaderPath == null)
             {
                 try {
                     shaderPath = AssetDatabase.GetAssetPath(unityShader);
-                } catch { /* Ignore threading error, proceed with null path */ }
+                } catch { }
             }
 
-            string hlslSource = GetShaderSource(unityShader, shaderPath);
+            if (string.IsNullOrEmpty(shaderName))
+            {
+                try { shaderName = unityShader.name; } catch { shaderName = "UnknownShader"; }
+            }
+            if (string.IsNullOrEmpty(materialName))
+            {
+                try { materialName = sourceMaterial.name; } catch { materialName = "UnknownMaterial"; }
+            }
+
+            string hlslSource = GetShaderSource(shaderName, shaderPath);
             
             if (string.IsNullOrEmpty(hlslSource))
             {
-                return CreateFallbackShaderIR(unityShader, sourceMaterial, "Could not retrieve shader source.");
+                return CreateFallbackShaderIR(shaderName, sourceMaterial, "Could not retrieve shader source.");
             }
 
-            // For simplicity, hardcode entry point and profile for now.
-            // These would ideally be determined by parsing the .shader file or more advanced reflection.
-            string entryPoint = "main"; // Default entry point for pixel shaders
-            string targetProfile = "ps_6_0"; // Pixel Shader 6.0 - broad compatibility
+            string entryPoint = "main";
+            string targetProfile = "ps_6_0";
 
             byte[] spirvBytecode = null;
             try
@@ -63,45 +63,44 @@ namespace WKAvatarOptimizer.Core.Universal
             }
             catch (Exception ex)
             {
-                Debug.LogError($"[UniversalShaderLoader] DXC compilation failed for shader '{unityShader.name}': {ex.Message}");
-                // Fallback to a basic ShaderIR or throw, depending on desired behavior
-                return CreateFallbackShaderIR(unityShader, sourceMaterial, ex.Message);
+                Debug.LogError($"[UniversalShaderLoader] DXC compilation failed for shader '{shaderName}': {ex.Message}");
+                return CreateFallbackShaderIR(shaderName, sourceMaterial, ex.Message);
             }
 
             ShaderIR ir = new ShaderIR
             {
-                Name = unityShader.name,
-                MaterialName = sourceMaterial.name
+                Name = shaderName,
+                MaterialName = materialName
             };
+
             using (SPIRVReflector reflector = new SPIRVReflector(spirvBytecode))
             {
-                // Extract semantic information using SPIRVReflector
                 var bindings = reflector.GetDescriptorBindings();
-
-                // Populate ShaderIR from bindings and other semantic data using PropertyMapper
-                PopulateShaderIRFromReflectionAndMaterial(ir, bindings, unityShader, sourceMaterial);
+                PopulateShaderIRFromReflectionAndMaterial(ir, bindings, shaderName, sourceMaterial);
             }
 
             return ir;
         }
 
-        private string GetShaderSource(Shader unityShader, string shaderPath)
+        private string GetShaderSource(string shaderName, string shaderPath)
         {
             if (string.IsNullOrEmpty(shaderPath))
             {
-                Debug.LogError($"[UniversalShaderLoader] Could not find asset path for shader '{unityShader.name}'. " +
-                               "Cannot read shader source. Is it a built-in Unity shader or an asset not in the project?");
+                Debug.LogWarning($"[UniversalShaderLoader] Could not find asset path for shader '{shaderName}'. Cannot read shader source.");
                 return null;
             }
-            
-            // Unity's built-in shaders and some complex custom shaders might not expose their raw text directly.
-            // For .shader files, we can read them directly.
-            // For other types (e.g., .shadersubgraph, built-in), this approach might fail.
+
             if (shaderPath.EndsWith(".shader", StringComparison.OrdinalIgnoreCase))
             {
                 try
                 {
-                    return File.ReadAllText(shaderPath);
+                    string source = File.ReadAllText(shaderPath);
+                    if (string.IsNullOrWhiteSpace(source))
+                    {
+                        Debug.LogWarning($"[UniversalShaderLoader] Shader file '{shaderPath}' is empty.");
+                        return null;
+                    }
+                    return source;
                 }
                 catch (Exception ex)
                 {
@@ -111,29 +110,17 @@ namespace WKAvatarOptimizer.Core.Universal
             }
             else
             {
-                Debug.LogWarning($"[UniversalShaderLoader] Unsupported shader file extension for '{unityShader.name}' at '{shaderPath}'. " +
-                                 "Only .shader files are directly supported for source reading with this method. Returning dummy source.");
-                // Fallback for non-.shader files, or built-in shaders where source is inaccessible
+                Debug.LogWarning($"[UniversalShaderLoader] Unsupported shader file extension for '{shaderName}' at '{shaderPath}'. Only .shader files are supported. Returning dummy source.");
                  return @"
-                    // Dummy HLSL source for testing DXC compilation when actual source is unavailable
-                    struct PS_INPUT
-                    {
-                        float4 Position : SV_POSITION;
-                        float2 TexCoord : TEXCOORD0;
-                    };
-
-                    Texture2D    g_texture    : register(t0);
-                    SamplerState g_sampler    : register(s0);
-
-                    float4 main(PS_INPUT Input) : SV_TARGET
-                    {
-                        return g_texture.Sample(g_sampler, Input.TexCoord);
-                    }
+                    struct PS_INPUT { float4 Position : SV_POSITION; float2 TexCoord : TEXCOORD0; };
+                    Texture2D g_texture : register(t0);
+                    SamplerState g_sampler : register(s0);
+                    float4 main(PS_INPUT Input) : SV_TARGET { return g_texture.Sample(g_sampler, Input.TexCoord); }
                 ";
             }
         }
 
-        private ShaderIR CreateFallbackShaderIR(Shader unityShader, Material sourceMaterial, string errorMessage)
+        private ShaderIR CreateFallbackShaderIR(string shaderName, Material sourceMaterial, string errorMessage)
         {
             ShaderIR fallbackIR = new ShaderIR();
             fallbackIR.shadingModel = ShaderIR.ShadingModel.Unlit;
@@ -142,32 +129,26 @@ namespace WKAvatarOptimizer.Core.Universal
             {
                 name = "CompilationError",
                 category = "Fallback",
-                description = $"Failed to process shader '{unityShader.name}': {errorMessage}",
-                suggestion = "Check shader syntax, file path, or if it's a built-in shader without accessible source."
+                description = $"Failed to process shader '{shaderName}': {errorMessage}",
+                suggestion = "Check shader syntax or file path."
             });
-
-            // Populate other fallback properties directly from the material as a last resort
-            PropertyMapper.CopyMaterialPropertiesToIR(fallbackIR, sourceMaterial);
 
             return fallbackIR;
         }
 
-        // Renamed from PopulateShaderIR to better reflect its purpose and use PropertyMapper
-        private void PopulateShaderIRFromReflectionAndMaterial(ShaderIR ir, SpvReflectDescriptorBinding[] bindings, Shader unityShader, Material sourceMaterial)
+        private void PopulateShaderIRFromReflectionAndMaterial(ShaderIR ir, SpvReflectDescriptorBinding[] bindings, string shaderName, Material sourceMaterial)
         {
-            // Use PropertyMapper to map reflected bindings and material properties to ShaderIR
             PropertyMapper.MapBindingsToShaderIR(ir, bindings, sourceMaterial);
 
-            // Additional inference based on shader name (heuristic) - can be refined or moved to PropertyMapper
-            if (unityShader.name.Contains("PBR", StringComparison.OrdinalIgnoreCase))
+            if (shaderName.Contains("PBR", StringComparison.OrdinalIgnoreCase))
             {
                 ir.shadingModel = ShaderIR.ShadingModel.PBR;
             }
-            else if (unityShader.name.Contains("Toon", StringComparison.OrdinalIgnoreCase))
+            else if (shaderName.Contains("Toon", StringComparison.OrdinalIgnoreCase))
             {
                 ir.shadingModel = ShaderIR.ShadingModel.Toon;
             }
-            else if (unityShader.name.Contains("Unlit", StringComparison.OrdinalIgnoreCase))
+            else if (shaderName.Contains("Unlit", StringComparison.OrdinalIgnoreCase))
             {
                 ir.shadingModel = ShaderIR.ShadingModel.Unlit;
             }

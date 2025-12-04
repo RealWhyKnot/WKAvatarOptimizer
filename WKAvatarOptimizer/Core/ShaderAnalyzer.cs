@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using System.Threading;
 using UnityEditor;
 using UnityEngine;
-using WKAvatarOptimizer.Core.Util; // For custom Profiler
+using WKAvatarOptimizer.Core.Util;
 
 namespace WKAvatarOptimizer.Core
 {
@@ -26,8 +26,11 @@ namespace WKAvatarOptimizer.Core
         public static ShaderIR Parse(Shader shader, Material material)
         {
             if (shader == null) return null;
-            
-            var cacheKey = (shader.name, material.name);
+
+            string shaderName = shader.name;
+            string materialName = material != null ? material.name : "UnknownMaterial";
+
+            var cacheKey = (shaderName, materialName);
             if (universalShaderCache.TryGetValue(cacheKey, out var cachedIR))
             {
                 return cachedIR;
@@ -38,7 +41,7 @@ namespace WKAvatarOptimizer.Core
                 path = AssetDatabase.GetAssetPath(shader);
             } catch { }
 
-            ShaderIR ir = ParseUniversal(shader, material, path);
+            ShaderIR ir = ParseUniversal(shader, material, path, shaderName, materialName);
             if (ir != null)
             {
                 universalShaderCache[cacheKey] = ir;
@@ -49,14 +52,17 @@ namespace WKAvatarOptimizer.Core
         public static List<ShaderIR> ParseAndCacheAllShaders(IEnumerable<(Shader shader, Material material)> shadersAndMaterials, bool overrideAlreadyCached, System.Action<int, int> progressCallback = null)
         {
             var results = new List<ShaderIR>();
-            // Pre-fetch paths on main thread
             var loaders = shadersAndMaterials.Distinct()
-                .Where(sm => overrideAlreadyCached || !universalShaderCache.ContainsKey((sm.shader.name, sm.material.name)))
-                .Select(sm => (sm.shader, sm.material, path: AssetDatabase.GetAssetPath(sm.shader)))
+                .Select(sm => {
+                    var shaderName = sm.shader != null ? sm.shader.name : "UnknownShader";
+                    var materialName = sm.material != null ? sm.material.name : "UnknownMaterial";
+                    return (sm.shader, sm.material, shaderName, materialName, path: AssetDatabase.GetAssetPath(sm.shader));
+                })
+                .Where(sm => overrideAlreadyCached || !universalShaderCache.ContainsKey((sm.shaderName, sm.materialName)))
                 .ToArray();
-            
+
             Profiler.StartSection("ShaderAnalyzer.ParseAndCacheAllShaders()");
-            var tasks = loaders.Select(sm => Task.Run(() => ParseUniversal(sm.shader, sm.material, sm.path))).ToArray();
+            var tasks = loaders.Select(sm => Task.Run(() => ParseUniversal(sm.shader, sm.material, sm.path, sm.shaderName, sm.materialName))).ToArray();
             int done = 0;
             while (done < tasks.Length)
             {
@@ -71,15 +77,22 @@ namespace WKAvatarOptimizer.Core
                 var ir = task.Result;
                 if (ir != null)
                 {
-                    universalShaderCache[(ir.Name, ir.MaterialName)] = ir; 
+                    universalShaderCache[(ir.Name, ir.MaterialName)] = ir;
                     results.Add(ir);
                 }
             }
-            // Return all results, including those already cached
-            return shadersAndMaterials.Select(sm => universalShaderCache[(sm.shader.name, sm.material.name)]).ToList();
+            return shadersAndMaterials.Select(sm => {
+                var shaderName = sm.shader != null ? sm.shader.name : "UnknownShader";
+                var materialName = sm.material != null ? sm.material.name : "UnknownMaterial";
+                if (universalShaderCache.TryGetValue((shaderName, materialName), out var cachedIR))
+                {
+                    return cachedIR;
+                }
+                return Parse(sm.shader, sm.material);
+            }).ToList();
         }
 
-        public static ShaderIR ParseUniversal(Shader shader, Material material, string shaderPath = null)
+        public static ShaderIR ParseUniversal(Shader shader, Material material, string shaderPath = null, string shaderName = null, string materialName = null)
         {
             if (shader == null)
             {
@@ -92,20 +105,29 @@ namespace WKAvatarOptimizer.Core
                 return null;
             }
 
+            if (string.IsNullOrEmpty(shaderName))
+            {
+                try { shaderName = shader.name; } catch { shaderName = "UnknownShader"; }
+            }
+            if (string.IsNullOrEmpty(materialName))
+            {
+                try { materialName = material.name; } catch { materialName = "UnknownMaterial"; }
+            }
+
             if (string.IsNullOrEmpty(shaderPath))
             {
                 try {
                     shaderPath = AssetDatabase.GetAssetPath(shader);
                 } catch { }
             }
-            
+
             if (string.IsNullOrEmpty(shaderPath))
             {
-                Debug.LogWarning($"[ShaderAnalyzer.ParseUniversal] Could not get asset path for shader '{shader.name}'. Falling back to dummy source.");
+                Debug.LogWarning($"[ShaderAnalyzer.ParseUniversal] Could not get asset path for shader '{shaderName}'. Falling back to dummy source.");
             }
 
             UniversalShaderLoader loader = new UniversalShaderLoader();
-            return loader.LoadShader(shader, material, shaderPath);
+            return loader.LoadShader(shader, material, shaderPath, shaderName, materialName);
         }
     }
 }

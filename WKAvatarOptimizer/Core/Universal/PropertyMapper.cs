@@ -2,8 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
-using UnityEngine; // Added for Material
-using WKAvatarOptimizer.Core.Native; // To use SpvReflectNative.SpvReflectDescriptorBinding
+using UnityEngine;
+using WKAvatarOptimizer.Core.Native;
 
 namespace WKAvatarOptimizer.Core.Universal
 {
@@ -15,7 +15,7 @@ namespace WKAvatarOptimizer.Core.Universal
             BaseColor,
             Normal,
             Metallic,
-            Roughness, // Potentially separate from Metallic for some shaders
+            Roughness,
             Shade,
             Ramp,
             Matcap,
@@ -49,8 +49,8 @@ namespace WKAvatarOptimizer.Core.Universal
         {
             { TextureRole.BaseColor, new[] { "base", "color", "albedo", "diffuse", "main", "tex0", "texture" } },
             { TextureRole.Normal, new[] { "normal", "bump", "nrm", "nmap", "normalmap" } },
-            { TextureRole.Metallic, new[] { "metallic", "metal", "spec", "specular", "ao" } }, // Often metallic/smoothness combined
-            { TextureRole.Roughness, new[] { "roughness", "gloss", "smoothness" } }, // Can be separate from metallic or combined
+            { TextureRole.Metallic, new[] { "metallic", "metal", "spec", "specular", "ao" } },
+            { TextureRole.Roughness, new[] { "roughness", "gloss", "smoothness" } },
             { TextureRole.Shade, new[] { "shade", "shadow", "dark", "shaded", "shadowmap" } },
             { TextureRole.Ramp, new[] { "ramp", "gradient", "lut", "curve", "shadowramp" } },
             { TextureRole.Matcap, new[] { "matcap", "sphere", "spheremap", "envmap", "spherecap" } },
@@ -88,7 +88,7 @@ namespace WKAvatarOptimizer.Core.Universal
         {
             string lowerName = name.ToLower();
             double bestScore = 0;
-            T bestRole = (T)Enum.Parse(typeof(T), "Unknown"); // Default to Unknown
+            T bestRole = (T)Enum.Parse(typeof(T), "Unknown");
 
             foreach (var entry in roleKeywords)
             {
@@ -96,10 +96,9 @@ namespace WKAvatarOptimizer.Core.Universal
                 {
                     double similarity = LevenshteinSimilarity(lowerName, keyword);
                     
-                    // Boost score if keyword is contained as substring (stronger match)
                     if (lowerName.Contains(keyword) || keyword.Contains(lowerName))
                     {
-                        similarity = Math.Max(similarity, 0.8); // High confidence if substring match
+                        similarity = Math.Max(similarity, 0.8);
                     }
 
                     if (similarity > bestScore)
@@ -110,15 +109,13 @@ namespace WKAvatarOptimizer.Core.Universal
                 }
             }
 
-            // Define a confidence threshold
-            if (bestScore > 0.6) // Adjustable threshold
+            if (bestScore > 0.6)
             {
                 return bestRole;
             }
             return (T)Enum.Parse(typeof(T), "Unknown");
         }
 
-        // Levenshtein Distance implementation
         public static double LevenshteinSimilarity(string s1, string s2)
         {
             if (string.IsNullOrEmpty(s1) || string.IsNullOrEmpty(s2)) return 0;
@@ -128,7 +125,6 @@ namespace WKAvatarOptimizer.Core.Universal
             int m = s2.Length;
             int[,] d = new int[n + 1, m + 1];
 
-            // Initialize the distance matrix
             for (int i = 0; i <= n; i++) d[i, 0] = i;
             for (int j = 0; j <= m; j++) d[0, j] = j;
 
@@ -138,17 +134,15 @@ namespace WKAvatarOptimizer.Core.Universal
                 {
                     int cost = (s2[j - 1] == s1[i - 1]) ? 0 : 1;
                     d[i, j] = Math.Min(
-                        Math.Min(d[i - 1, j] + 1,      // Deletion
-                                 d[i, j - 1] + 1),      // Insertion
-                        d[i - 1, j - 1] + cost);        // Substitution
+                        Math.Min(d[i - 1, j] + 1,
+                                 d[i, j - 1] + 1),
+                        d[i - 1, j - 1] + cost);
                 }
             }
 
-            // Return similarity, not distance
             return 1.0 - ((double)d[n, m] / Math.Max(n, m));
         }
 
-        // Helper to populate ShaderIR based on reflected bindings and current material properties
         public static void MapBindingsToShaderIR(ShaderIR ir, SpvReflectDescriptorBinding[] bindings, Material sourceMaterial)
         {
             foreach (var binding in bindings)
@@ -165,7 +159,6 @@ namespace WKAvatarOptimizer.Core.Universal
                     {
                          texture = sourceMaterial.GetTexture(name) as Texture2D;
                     }
-                    // Fallback to _MainTex for BaseColor if original property not found
                     if (role == TextureRole.BaseColor && texture == null && sourceMaterial.HasProperty("_MainTex"))
                     {
                         texture = sourceMaterial.GetTexture("_MainTex") as Texture2D;
@@ -176,13 +169,13 @@ namespace WKAvatarOptimizer.Core.Universal
                         case TextureRole.BaseColor: ir.baseColor.texture = texture; break;
                         case TextureRole.Normal: ir.normalMap.texture = texture; break;
                         case TextureRole.Metallic: 
-                        case TextureRole.Roughness: // Often combined, refine later
+                        case TextureRole.Roughness:
                             ir.metallicGlossMap.texture = texture; 
                             break;
                         case TextureRole.Shade: ir.shadeMap.texture = texture; break;
                         case TextureRole.Ramp: ir.rampTexture.texture = texture; break;
                         case TextureRole.Matcap: ir.matcapTexture.texture = texture; break;
-                        case TextureRole.Rim: // Rim textures are less common, often just color
+                        case TextureRole.Rim:
                             ir.customNodes.Add(new CustomNode { name = name, category = "TextureBinding", description = $"Rim texture detected: {name}" });
                             break;
                         case TextureRole.Emission: ir.emissionMap.texture = texture; break;
@@ -200,16 +193,13 @@ namespace WKAvatarOptimizer.Core.Universal
                             break;
                     }
                 }
-                // TODO: Handle Uniform Buffers for other parameters
             }
 
-            // Copy explicit material properties for colors/scalars (to override or supplement reflected data)
             CopyMaterialPropertiesToIR(ir, sourceMaterial);
         }
 
         public static void CopyMaterialPropertiesToIR(ShaderIR ir, Material sourceMaterial)
         {
-            // Textures (already handled by reflection and mapping, but ensure scale/offset)
             if (sourceMaterial.HasProperty("_MainTex_ST"))
             {
                 Vector4 st = sourceMaterial.GetVector("_MainTex_ST");
@@ -217,7 +207,6 @@ namespace WKAvatarOptimizer.Core.Universal
                 ir.baseColor.offset = new UnityEngine.Vector2(st.z, st.w);
             }
 
-            // Colors
             if (sourceMaterial.HasProperty("_Color")) ir.baseColor.color = sourceMaterial.GetColor("_Color");
             if (sourceMaterial.HasProperty("_ShadeColor")) ir.shadeColor = sourceMaterial.GetColor("_ShadeColor");
             if (sourceMaterial.HasProperty("_RimColor")) ir.rimColor = sourceMaterial.GetColor("_RimColor");
@@ -225,11 +214,10 @@ namespace WKAvatarOptimizer.Core.Universal
             if (sourceMaterial.HasProperty("_EmissionColor")) ir.emissionColor = sourceMaterial.GetColor("_EmissionColor");
             if (sourceMaterial.HasProperty("_MatcapColor")) ir.matcapColor = sourceMaterial.GetColor("_MatcapColor");
 
-            // Floats
             if (sourceMaterial.HasProperty("_BumpScale")) ir.normalScale = sourceMaterial.GetFloat("_BumpScale");
             if (sourceMaterial.HasProperty("_Metallic")) ir.metallicStrength = sourceMaterial.GetFloat("_Metallic");
-            if (sourceMaterial.HasProperty("_Glossiness")) ir.smoothness = sourceMaterial.GetFloat("_Glossiness"); // Standard
-            if (sourceMaterial.HasProperty("_Smoothness")) ir.smoothness = sourceMaterial.GetFloat("_Smoothness"); // URP/HDRP
+            if (sourceMaterial.HasProperty("_Glossiness")) ir.smoothness = sourceMaterial.GetFloat("_Glossiness");
+            if (sourceMaterial.HasProperty("_Smoothness")) ir.smoothness = sourceMaterial.GetFloat("_Smoothness");
             if (sourceMaterial.HasProperty("_RimPower")) ir.rimPower = sourceMaterial.GetFloat("_RimPower");
             if (sourceMaterial.HasProperty("_RimIntensity")) ir.rimIntensity = sourceMaterial.GetFloat("_RimIntensity");
             if (sourceMaterial.HasProperty("_OutlineWidth")) ir.outlineWidth = sourceMaterial.GetFloat("_OutlineWidth");
@@ -239,37 +227,34 @@ namespace WKAvatarOptimizer.Core.Universal
             if (sourceMaterial.HasProperty("_ShadowSmoothness")) ir.shadowSmooth = sourceMaterial.GetFloat("_ShadowSmoothness");
             if (sourceMaterial.HasProperty("_DetailNormalMapScale")) ir.detailScale = sourceMaterial.GetFloat("_DetailNormalMapScale");
 
-            // Bools/Ints
             if (sourceMaterial.HasProperty("_UseOutline")) ir.useOutline = sourceMaterial.GetFloat("_UseOutline") > 0.5f;
             if (sourceMaterial.HasProperty("_UseMatcapSecond")) ir.useMatcapSecond = sourceMaterial.GetFloat("_UseMatcapSecond") > 0.5f;
             if (sourceMaterial.HasProperty("_OutlineScreenSpace")) ir.outlineScreenSpace = sourceMaterial.GetFloat("_OutlineScreenSpace") > 0.5f;
 
-            // Infer blend mode from material properties
-            if (sourceMaterial.HasProperty("_Mode")) // Unity Standard/URP
+            if (sourceMaterial.HasProperty("_Mode"))
             {
                 var mode = (int)sourceMaterial.GetFloat("_Mode");
                 switch (mode)
                 {
-                    case 0: ir.blendMode = ShaderIR.BlendMode.Opaque; break; // Opaque
-                    case 1: ir.blendMode = ShaderIR.BlendMode.Cutout; break; // Cutout
-                    case 2: ir.blendMode = ShaderIR.BlendMode.Alpha; break;   // Fade
-                    case 3: ir.blendMode = ShaderIR.BlendMode.Alpha; break;   // Transparent (often same as fade)
+                    case 0: ir.blendMode = ShaderIR.BlendMode.Opaque; break;
+                    case 1: ir.blendMode = ShaderIR.BlendMode.Cutout; break;
+                    case 2: ir.blendMode = ShaderIR.BlendMode.Alpha; break;
+                    case 3: ir.blendMode = ShaderIR.BlendMode.Alpha; break;
                 }
             }
-            else if (sourceMaterial.HasProperty("_BlendMode")) // Poiyomi/LilToon (common naming)
+            else if (sourceMaterial.HasProperty("_BlendMode"))
             {
                 var mode = (int)sourceMaterial.GetFloat("_BlendMode");
                 switch (mode)
                 {
                     case 0: ir.blendMode = ShaderIR.BlendMode.Opaque; break;
                     case 1: ir.blendMode = ShaderIR.BlendMode.Cutout; break;
-                    case 2: ir.blendMode = ShaderIR.BlendMode.Alpha; break; // Alpha/Fade
+                    case 2: ir.blendMode = ShaderIR.BlendMode.Alpha; break;
                     case 3: ir.blendMode = ShaderIR.BlendMode.Additive; break;
                     case 4: ir.blendMode = ShaderIR.BlendMode.Premultiplied; break;
                 }
             }
 
-            // Infer cull mode
             if (sourceMaterial.HasProperty("_Cull"))
             {
                 var cull = (int)sourceMaterial.GetFloat("_Cull");

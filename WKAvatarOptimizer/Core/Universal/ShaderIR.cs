@@ -1,16 +1,15 @@
 using System;
 using System.Collections.Generic;
-using UnityEngine; // Assuming Unity types like Color, Texture2D, Vector2
+using UnityEngine;
 
 namespace WKAvatarOptimizer.Core.Universal
 {
     [Serializable]
     public class ShaderIR
     {
-        public string Name; // Name of the original shader
-        public string MaterialName; // Name of the material associated with this IR
+        public string Name;
+        public string MaterialName;
 
-        // ===== RENDER STATE =====
         public enum ShadingModel { Unlit, Toon, PBR, Hybrid }
         public enum BlendMode { Opaque, Cutout, Alpha, Additive, Premultiplied }
         public enum CullMode { Back, Front, Off }
@@ -21,7 +20,6 @@ namespace WKAvatarOptimizer.Core.Universal
         public int renderQueue = 2000;
         public bool ignoreProjector = false;
 
-        // ===== SURFACE PROPERTIES =====
         public TextureProperty baseColor = new TextureProperty();
         public TextureProperty normalMap = new TextureProperty();
         public float normalScale = 1f;
@@ -30,14 +28,12 @@ namespace WKAvatarOptimizer.Core.Universal
         public float metallicStrength = 0f;
         public float smoothness = 0.5f;
 
-        // ===== TOON/SHADE PROPERTIES =====
         public TextureProperty shadeMap = new TextureProperty();
         public Color shadeColor = Color.gray;
-        public TextureProperty rampTexture = new TextureProperty(); // gradient ramp
+        public TextureProperty rampTexture = new TextureProperty();
         public float shadowThreshold = 0.5f;
         public float shadowSmooth = 0.1f;
 
-        // ===== STYLIZATION =====
         public TextureProperty matcapTexture = new TextureProperty();
         public Color matcapColor = Color.white;
         public bool useMatcapSecond = false;
@@ -54,7 +50,6 @@ namespace WKAvatarOptimizer.Core.Universal
         public TextureProperty outlineMask = new TextureProperty();
         public bool outlineScreenSpace = true;
 
-        // ===== EFFECTS =====
         public Color emissionColor = Color.black;
         public TextureProperty emissionMap = new TextureProperty();
         public float emissionIntensity = 1f;
@@ -62,15 +57,11 @@ namespace WKAvatarOptimizer.Core.Universal
         public TextureProperty dissolveMask = new TextureProperty();
         public float dissolveAmount = 0f;
 
-        // ===== DETAIL/LAYER =====
         public TextureProperty detailMap = new TextureProperty();
         public float detailScale = 1f;
 
-        // ===== UNKNOWN/CUSTOM =====
         public List<CustomNode> customNodes = new List<CustomNode>();
 
-        // ===== UTILITIES =====
-        // This method will be expanded later when Universal.shader is defined
         public void ApplyToMaterial(Material targetMaterial, Shader universalShader)
         {
             if (targetMaterial == null) throw new ArgumentNullException(nameof(targetMaterial));
@@ -78,19 +69,15 @@ namespace WKAvatarOptimizer.Core.Universal
 
             targetMaterial.shader = universalShader;
 
-            // Set keywords based on IR features
             SetKeywords(targetMaterial);
 
-            // Set render state properties
             SetRenderState(targetMaterial);
 
-            // Assign textures and colors
             AssignProperties(targetMaterial);
         }
 
         private void SetKeywords(Material mat)
         {
-            // Shading Model Keywords
             mat.DisableKeyword("_SHADING_MODE_UNLIT");
             mat.DisableKeyword("_SHADING_MODE_TOON");
             mat.DisableKeyword("_SHADING_MODE_PBR");
@@ -99,13 +86,12 @@ namespace WKAvatarOptimizer.Core.Universal
                 case ShadingModel.Unlit: mat.EnableKeyword("_SHADING_MODE_UNLIT"); break;
                 case ShadingModel.Toon: mat.EnableKeyword("_SHADING_MODE_TOON"); break;
                 case ShadingModel.PBR: mat.EnableKeyword("_SHADING_MODE_PBR"); break;
-                case ShadingModel.Hybrid: // Hybrid might enable both Toon and PBR keywords or a specific HYBRID keyword
+                case ShadingModel.Hybrid:
                     mat.EnableKeyword("_SHADING_MODE_TOON"); 
                     mat.EnableKeyword("_SHADING_MODE_PBR");
                     break;
             }
 
-            // Feature Keywords
             SetKeyword(mat, "_USE_NORMAL_MAP", normalMap.texture != null);
             SetKeyword(mat, "_USE_METALLIC_GLOSS_MAP", metallicGlossMap.texture != null);
             SetKeyword(mat, "_USE_SHADE_MAP", shadeMap.texture != null);
@@ -120,7 +106,6 @@ namespace WKAvatarOptimizer.Core.Universal
             SetKeyword(mat, "_DOUBLE_SIDED", cullMode == CullMode.Off);
 
 
-            // Blend Mode Keywords
             mat.DisableKeyword("_TRANSPARENCY_OFF");
             mat.DisableKeyword("_TRANSPARENCY_CUTOUT");
             mat.DisableKeyword("_TRANSPARENCY_ALPHA");
@@ -144,7 +129,6 @@ namespace WKAvatarOptimizer.Core.Universal
 
         private void SetRenderState(Material mat)
         {
-            // Cull mode
             switch (cullMode)
             {
                 case CullMode.Back: mat.SetInt("_Cull", (int)UnityEngine.Rendering.CullMode.Back); break;
@@ -152,8 +136,6 @@ namespace WKAvatarOptimizer.Core.Universal
                 case CullMode.Off: mat.SetInt("_Cull", (int)UnityEngine.Rendering.CullMode.Off); break;
             }
 
-            // Blend mode based on rendering queue and blend factors
-            // These settings need to match the Universal.shader implementation
             switch (blendMode)
             {
                 case BlendMode.Opaque:
@@ -188,7 +170,6 @@ namespace WKAvatarOptimizer.Core.Universal
                     break;
             }
 
-            // General render queue if not overridden by blend mode
             if (renderQueue != 2000)
             {
                 mat.renderQueue = renderQueue;
@@ -198,28 +179,25 @@ namespace WKAvatarOptimizer.Core.Universal
 
         private void AssignProperties(Material mat)
         {
-            // Colors
             mat.SetColor("_BaseColor", baseColor.color);
             mat.SetColor("_ShadeColor", shadeColor);
             mat.SetColor("_RimColor", rimColor);
             mat.SetColor("_OutlineColor", outlineColor);
             mat.SetColor("_EmissionColor", emissionColor);
-            mat.SetColor("_MatcapColor", matcapColor); // Assuming MatcapColor property exists
+            mat.SetColor("_MatcapColor", matcapColor);
 
-            // Textures
             SetTexture(mat, "_BaseMap", baseColor.texture);
             SetTexture(mat, "_NormalMap", normalMap.texture);
             SetTexture(mat, "_MetallicGlossMap", metallicGlossMap.texture);
             SetTexture(mat, "_ShadeMap", shadeMap.texture);
             SetTexture(mat, "_RampTexture", rampTexture.texture);
             SetTexture(mat, "_MatcapTexture", matcapTexture.texture);
-            SetTexture(mat, "_MatcapTexture2", matcapTexture2.texture); // Second Matcap
+            SetTexture(mat, "_MatcapTexture2", matcapTexture2.texture);
             SetTexture(mat, "_OutlineMask", outlineMask.texture);
             SetTexture(mat, "_EmissionMap", emissionMap.texture);
             SetTexture(mat, "_DissolveMask", dissolveMask.texture);
             SetTexture(mat, "_DetailMap", detailMap.texture);
 
-            // Scalars
             mat.SetFloat("_NormalScale", normalScale);
             mat.SetFloat("_MetallicStrength", metallicStrength);
             mat.SetFloat("_Smoothness", smoothness);
@@ -228,13 +206,11 @@ namespace WKAvatarOptimizer.Core.Universal
             mat.SetFloat("_OutlineWidth", outlineWidth);
             mat.SetFloat("_EmissionIntensity", emissionIntensity);
             mat.SetFloat("_DissolveAmount", dissolveAmount);
-            mat.SetInt("_OutlineScreenSpace", outlineScreenSpace ? 1 : 0); // Assuming property exists
-            mat.SetFloat("_ShadowThreshold", shadowThreshold); // Assuming property exists
-            mat.SetFloat("_ShadowSmooth", shadowSmooth); // Assuming property exists
-            mat.SetFloat("_DetailScale", detailScale); // Assuming property exists
+            mat.SetInt("_OutlineScreenSpace", outlineScreenSpace ? 1 : 0);
+            mat.SetFloat("_ShadowThreshold", shadowThreshold);
+            mat.SetFloat("_ShadowSmooth", shadowSmooth);
+            mat.SetFloat("_DetailScale", detailScale);
 
-            // Texture Scale/Offset (_ST properties) - Unity automatically handles this if main texture exists.
-            // For other textures, explicit handling might be needed in the shader or via separate properties.
         }
 
         private void SetTexture(Material mat, string propertyName, Texture2D texture)
@@ -245,7 +221,6 @@ namespace WKAvatarOptimizer.Core.Universal
             }
             else
             {
-                // Optionally clear the texture or set a default if necessary
                 mat.SetTexture(propertyName, null);
             }
         }
@@ -255,16 +230,16 @@ namespace WKAvatarOptimizer.Core.Universal
     public class TextureProperty
     {
         public Texture2D texture;
-        public Vector2 scale = Vector2.one; // For _ST property
-        public Vector2 offset = Vector2.zero; // For _ST property
-        public Color color = Color.white; // Tint color often associated with a texture
+        public Vector2 scale = Vector2.one;
+        public Vector2 offset = Vector2.zero;
+        public Color color = Color.white;
     }
 
     [Serializable]
     public class CustomNode
     {
-        public string name; // e.g. "AudioLink", "LTCGI", "CustomEffectX"
-        public string category; // e.g., "UnmappedParameter", "ControlFlowAnomaly"
+        public string name;
+        public string category;
         public string description;
         public string suggestion;
         public Dictionary<string, string> parameters = new Dictionary<string, string>();
