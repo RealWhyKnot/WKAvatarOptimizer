@@ -294,12 +294,7 @@ namespace WKAvatarOptimizer.Core
                     }
                 } else {
                     SetFloatCurve(newClip, fixedBinding, curve);
-                    if (fixedBinding.propertyName.StartsWithSimple($"material.WKVRCOptimizer")) {
-                        var otherBinding = fixedBinding;
-                        var match = Regex.Match(fixedBinding.propertyName, @"material\.WKVRCOptimizer(.+)_ArrayIndex\d+(\.[a-z])?");
-                        otherBinding.propertyName = $"material.{match.Groups[1].Value}{match.Groups[2].Value}";
-                        SetFloatCurve(newClip, otherBinding, curve);
-                    }
+                    // Legacy WKVRCOptimizer property rewriting removed for Universal Shader compatibility
                 }
                 bool addPhysBoneCurves = (binding.type == typeof(SkinnedMeshRenderer) && binding.propertyName == "m_Enabled")
                     || (binding.type == typeof(GameObject) && binding.propertyName == "m_IsActive");

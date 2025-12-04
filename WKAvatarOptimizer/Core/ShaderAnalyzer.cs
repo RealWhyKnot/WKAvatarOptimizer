@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using WKAvatarOptimizer.Core.Universal;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -171,35 +172,46 @@ namespace WKAvatarOptimizer.Core
         }
 
         private static Dictionary<string, ParsedShader> parsedShaderCache = new Dictionary<string, ParsedShader>();
+        private static Dictionary<(string shaderName, string materialName), ShaderIR> universalShaderCache = new Dictionary<(string shaderName, string materialName), ShaderIR>();
+        private static UniversalShaderLoader _universalShaderLoader = new UniversalShaderLoader(); // Singleton instance
 
         public static void ClearParsedShaderCache()
         {
             parsedShaderCache.Clear();
+            universalShaderCache.Clear();
         }
-
-        public static ParsedShader Parse(Shader shader)
+        
+        // This Parse method will be adapted to return ShaderIR for the new Universal pipeline
+        public static ShaderIR Parse(Shader shader, Material material)
         {
-            if (shader == null)
-                return null;
-            if (!parsedShaderCache.TryGetValue(shader.name, out var parsedShader))
+            if (shader == null) return null;
+            
+            // Use universalShaderCache with a combined key
+            var cacheKey = (shader.name, material.name);
+            if (universalShaderCache.TryGetValue(cacheKey, out var cachedIR))
             {
-                var analyzer = new ShaderAnalyzer(shader.name, AssetDatabase.GetAssetPath(shader));
-                Profiler.StartSection("ShaderAnalyzer.Parse()");
-                parsedShader = analyzer.Parse();
-                Profiler.EndSection();
-                parsedShaderCache[shader.name] = parsedShader;
+                return cachedIR;
             }
-            return parsedShader;
+
+            ShaderIR ir = ParseUniversal(shader, material);
+            if (ir != null)
+            {
+                universalShaderCache[cacheKey] = ir;
+            }
+            return ir;
         }
 
-        public static List<ParsedShader> ParseAndCacheAllShaders(IEnumerable<Shader> shaders, bool overrideAlreadyCached, System.Action<int, int> progressCallback = null)
+        // This method will be adapted for the new Universal pipeline
+        public static List<ShaderIR> ParseAndCacheAllShaders(IEnumerable<(Shader shader, Material material)> shadersAndMaterials, bool overrideAlreadyCached, System.Action<int, int> progressCallback = null)
         {
-            var analyzers = shaders.Distinct()
-                .Where(s => overrideAlreadyCached || !parsedShaderCache.ContainsKey(s.name))
-                .Select(s => new ShaderAnalyzer(s.name, AssetDatabase.GetAssetPath(s)))
+            var results = new List<ShaderIR>();
+            var loaders = shadersAndMaterials.Distinct()
+                .Where(sm => overrideAlreadyCached || !universalShaderCache.ContainsKey((sm.shader.name, sm.material.name)))
+                .Select(sm => (sm.shader, sm.material))
                 .ToArray();
-            Profiler.StartSection("ShaderAnalyzer.Parse()");
-            var tasks = analyzers.Select(a => Task.Run(() => a.Parse())).ToArray();
+            
+            Profiler.StartSection("ShaderAnalyzer.ParseAndCacheAllShaders()");
+            var tasks = loaders.Select(sm => Task.Run(() => ParseUniversal(sm.shader, sm.material))).ToArray();
             int done = 0;
             while (done < tasks.Length)
             {
@@ -208,9 +220,43 @@ namespace WKAvatarOptimizer.Core
                 Thread.Sleep(1);
             }
             Profiler.EndSection();
-            foreach (var a in analyzers)
-                parsedShaderCache[a.parsedShader.name] = a.parsedShader;
-            return shaders.Select(s => parsedShaderCache[s.name]).ToList();
+
+            foreach (var task in tasks)
+            {
+                var ir = task.Result;
+                if (ir != null)
+                {
+                    universalShaderCache[(ir.name, ir.material.name)] = ir; // Assuming ShaderIR will have name and material name
+                    results.Add(ir);
+                }
+            }
+            // Return all results, including those already cached
+            return shadersAndMaterials.Select(sm => universalShaderCache[(sm.shader.name, sm.material.name)]).ToList();
+        }
+
+        public static ShaderIR ParseUniversal(Shader shader, Material material)
+        {
+            if (shader == null)
+            {
+                Debug.LogError("[ShaderAnalyzer.ParseUniversal] Shader is null.");
+                return null;
+            }
+            if (material == null)
+            {
+                Debug.LogError("[ShaderAnalyzer.ParseUniversal] Material is null.");
+                return null;
+            }
+
+            // For now, AssetDatabase.GetAssetPath(shader) is needed for GetShaderSource in UniversalShaderLoader
+            // This is temporary until UniversalShaderLoader.GetShaderSource is properly implemented for all cases.
+            string shaderPath = AssetDatabase.GetAssetPath(shader);
+            if (string.IsNullOrEmpty(shaderPath))
+            {
+                Debug.LogWarning($"[ShaderAnalyzer.ParseUniversal] Could not get asset path for shader '{shader.name}'. Falling back to dummy source.");
+            }
+
+            UniversalShaderLoader loader = new UniversalShaderLoader();
+            return loader.LoadShader(shader, material);
         }
 
         private ParsedShader parsedShader;
@@ -1729,47 +1775,53 @@ namespace WKAvatarOptimizer.Core
             foreach (var arrayProperty in arrayPropertyValues)
             {
                 var values = arrayProperty.Value.values;
-                var seenOnce = new HashSet<string>();
-                var seenMultiple = new HashSet<string>();
-                foreach (var value in values)
-                {
-                    if (seenOnce.Contains(value))
-                    {
-                        seenOnce.Remove(value);
-                        seenMultiple.Add(value);
-                    }
-                    else if (!seenMultiple.Contains(value))
-                    {
-                        seenOnce.Add(value);
-                    }
+                if (values == null || values.Count == 0) {
+                    output.Add($"// WKAVATAROPTIMIZER WARNING: Array property {arrayProperty.Key} has no values. Defaulting to 0.");
+                    output.Add($"{arrayProperty.Key} = 0;");
+                    continue;
                 }
-                if ((seenOnce.Count == 1 && seenMultiple.Count == 1) || values.Count == 2)
+
+                var distinctValues = values.Distinct().ToList();
+
+                if (distinctValues.Count == 2 && values.Count <= 32)
                 {
-                    int index = values.IndexOf(seenOnce.First());
-                    var secondValue = values.Count == 2 ? values[1 - index] : seenMultiple.First();
-                    output.Add($"{arrayProperty.Key} = WKVRCOptimizer_MaterialID == {index} ? {seenOnce.First()} : {secondValue};");
-                }
-                else if (values.Count <= 32 && seenOnce.Count + seenMultiple.Count == 2)
-                {
-                    var firstValue = seenMultiple.First();
-                    var secondValue = seenMultiple.Last();
+                    var firstValue = distinctValues[0];
+                    var secondValue = distinctValues[1];
                     uint bitField = 0;
                     for (int i = 0; i < values.Count; i++)
                     {
                         if (values[i] == firstValue)
-                            bitField |= 1u << i;
+                            bitField |= (1u << i);
                     }
                     output.Add($"{arrayProperty.Key} = ((1u << WKVRCOptimizer_MaterialID) & {bitField}) != 0 ? {firstValue} : {secondValue};");
                 }
-                else
+                else // General case: more than 2 distinct values, or too many for bitfield, or only 1 distinct value.
                 {
                     output.Add($"{arrayProperty.Key} = WKVRCOptimizerArray{arrayProperty.Key}[WKVRCOptimizer_MaterialID];");
                 }
             }
         }
 
-        private bool ArrayPropertyNeedsIndexing(List<string> values)
+        private void InjectLegacyPropertyAssignments()
         {
+            var allProps = arrayPropertyValues.Keys.Union(staticPropertyValues.Keys);
+            foreach (var name in allProps)
+            {
+                if (name.StartsWithSimple("_WKVRCOpt_arrayIndex_"))
+                {
+                    string originalPoiyomiSuffix = name.Substring("_WKVRCOpt_arrayIndex_".Length);
+                    string legacyName = "arrayIndex" + originalPoiyomiSuffix;
+                    if (arrayPropertyValues.ContainsKey(legacyName) || staticPropertyValues.ContainsKey(legacyName))
+                    {
+                        output.Add($"{legacyName} = {name};");
+                    }
+                }
+            }
+        }
+
+        private bool ArrayPropertyNeedsIndexing(List<string> values, string propertyName)
+        {
+            if (propertyName.StartsWith("shouldSample")) return true; // Always treat shouldSample as varying, even if all are false
             var seenOnce = new HashSet<string>();
             var seenMultiple = new HashSet<string>();
             foreach (var value in values)
@@ -1991,7 +2043,8 @@ namespace WKAvatarOptimizer.Core
                 InitializeOutputParameter(funcParams, output, !needToPassOnMeshOrMaterialID);
                 InjectDummyCBufferUsage(nullReturn);
                 InjectIsActiveMeshCheck(nullReturn);
-                InjectArrayPropertyInitialization();
+                    InjectArrayPropertyInitialization();
+                InjectLegacyPropertyAssignments();
                 InjectAnimatedPropertyInitialization();
             }
             curlyBraceDepth++;
@@ -2118,7 +2171,8 @@ namespace WKAvatarOptimizer.Core
             }
             InjectDummyCBufferUsage("return;");
             InjectIsActiveMeshCheck("return;");
-            InjectArrayPropertyInitialization();
+                InjectArrayPropertyInitialization();
+                InjectLegacyPropertyAssignments();
             InjectAnimatedPropertyInitialization();
             if (!usesOutputWrapper)
             {
@@ -2184,7 +2238,8 @@ namespace WKAvatarOptimizer.Core
                 output.Add("WKVRCOptimizer_MaterialID = WKVRCOptimizer_fragmentInput.WKVRCOptimizer_MeshMaterialID & 0xFFFF;");
                 output.Add("WKVRCOptimizer_MeshID = WKVRCOptimizer_fragmentInput.WKVRCOptimizer_MeshMaterialID >> 16;");
                 InjectDummyCBufferUsage(nullReturn);
-                InjectArrayPropertyInitialization();
+                    InjectArrayPropertyInitialization();
+                InjectLegacyPropertyAssignments();
                 InjectAnimatedPropertyInitialization();
             }
             else
@@ -2525,7 +2580,23 @@ namespace WKAvatarOptimizer.Core
                 var varName = name;
                 if (name == "_MainTex_ST" && texturesToMerge.Contains("_MainTex"))
                     varName = "_MainTexButNotQuiteSoThatUnityDoesntCry_ST";
-                output.Add("static " + type + " " + varName + " = " + value + ";");
+                
+                if (arrayPropertyValues.ContainsKey(name))
+                {
+                    bool isInternal = name.StartsWithSimple("_WKVRCOpt_") || name.StartsWithSimple("shouldSample");
+                    if (isInternal)
+                    {
+                        output.Add($"#define {varName} WKVRCOptimizerArray{name}[WKVRCOptimizer_MaterialID]");
+                    }
+                    else
+                    {
+                        output.Add($"static {type} {varName} = {value};");
+                    }
+                }
+                else
+                {
+                    output.Add("static " + type + " " + varName + " = " + value + ";");
+                }
             }
             output.Add("uniform float WKVRCOptimizer_Zero; // Added by ShaderOptimizer for NaN checks");
             output.Add("static uint WKVRCOptimizer_MaterialID = 0;");
@@ -2535,8 +2606,7 @@ namespace WKAvatarOptimizer.Core
                 foreach (var arrayProperty in arrayPropertyValues)
                 {
                     var (type, values) = arrayProperty.Value;
-                    if (!ArrayPropertyNeedsIndexing(values))
-                        continue;
+
                     output.Add($"static const {type} WKVRCOptimizerArray{arrayProperty.Key}[{values.Count}] = ");
                     output.Add("{");
                     for (int i = 0; i < values.Count; i++)
@@ -2549,7 +2619,7 @@ namespace WKAvatarOptimizer.Core
             foreach (var property in staticPropertyValues)
             {
                 string name = property.Key;
-                if (name.StartsWithSimple("arrayIndex") && texturesToMerge.Contains(name.Substring(10)))
+                if (name.StartsWithSimple("_WKVRCOpt_arrayIndex_") && texturesToMerge.Contains(name.Substring(20)))
                 {
                     output.Add($"static float {name} = {property.Value};");
                 }
@@ -2564,7 +2634,7 @@ namespace WKAvatarOptimizer.Core
                 }
 
                 bool isArray = texturesToMerge.Contains(texName);
-                string uv = isArray ? "float3(uv, arrayIndex" + texName + ")" : "uv";
+                string uv = isArray ? "float3(uv, _WKVRCOpt_arrayIndex_" + texName + ")" : "uv";
 
                 string newTexName = texName;
                 string type = "float4";

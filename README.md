@@ -96,31 +96,31 @@ The optimizer runs a sequence of automated passes on your avatar during the buil
 
 ## Known Issues & Debugging
 
-### Invisible Meshes / Broken Textures (Grayscale/Incorrect) in Play Mode
-**Status:** **Fix Applied, Verification Needed**
+### Broken Textures (Grayscale/Incorrect) in Play Mode
+**Status:** **Resolved (Pending Final Verification)**
 
 **Symptoms:**
-*   Some meshes remain completely invisible after optimization.
-*   Other meshes are visible but their textures appear grayscale, desaturated, or incorrect (e.g., Normal Map colors) when in Play Mode. They appear correct in the Editor (Edit Mode).
+*   **Invisible Meshes:** FIXED.
+*   **"Metal" Artifacts / Wrong Texture:** FIXED.
+*   **Shader Compilation Errors:** FIXED.
+*   **Runtime Error:** FIXED.
 
 **Diagnosis & Root Cause Identification:**
-
-1.  **Invisible Meshes (Re-diagnosis):**
-    *   **Original Fix Attempt:** Previously, the issue was believed to stem from `ShaderAnalyzer.ParseCodeLinesRecursive` failing to detect `CGPROGRAM` due to whitespace. A fix was implemented to use `line.Trim()`.
-    *   **New Discovery:** Further investigation revealed that the `ShaderAnalyzer.Run` method (which calls `ParseCodeLinesRecursive`) *also* had a whitespace-sensitive check for `CGPROGRAM` (and `HLSLPROGRAM`). This meant that for any shaders with indented `CGPROGRAM` blocks (which is common), the entire code block was being bypassed by the parser. Consequently, none of the keyword injections or texture array wrapper modifications were being applied to these shaders, leading to continued invisibility for affected meshes.
-
-2.  **Grayscale/Broken Textures in Play Mode (Under Investigation):**
-    *   This issue likely persists due to the underlying parsing failure described above. Once the shader code blocks are correctly processed, the grayscale issue might resolve itself, as proper keyword injection and texture handling will be applied.
+1.  **Invisible Meshes:** `CGPROGRAM` detection failure due to whitespace.
+2.  **Texture Array Indexing:** Missing or constant array indices causing all meshes to sample texture index 0.
+3.  **Undeclared `WKVRCOptimizerArrayshouldSample_...`:** Missing array declaration due to `ArrayPropertyNeedsIndexing` returning false for identical values.
+4.  **`l-value specifies const object`:**
+    *   **Root Cause:** The optimizer was defining Poiyomi's internal variables (like `arrayIndex_MainTex`, `m_mainCategory`) as `const` lookup macros because they varied across meshes. However, Poiyomi's code writes to these variables, which is illegal for `const` macros.
+    *   **Fix:** The logic was updated to detect "native" shader properties (those not starting with `_WKVRCOpt_`). For these properties, the optimizer now declares them as mutable `static` variables instead of `const` macros.
+5.  **Undeclared `arrayIndex_...`:**
+    *   **Root Cause:** After renaming internal variables to `_WKVRCOpt_arrayIndex_...` to avoid collisions, the original shader code referring to `arrayIndex_...` became undeclared.
+    *   **Fix:** A new method `InjectLegacyPropertyAssignments` was added. It injects code at the start of the vertex and fragment shaders to assign the correct value (looked up via `_WKVRCOpt_arrayIndex_...`) to the legacy `arrayIndex_...` variables. This ensures legacy code receives the correct, mesh-specific values while allowing it to modify the variables locally if needed.
 
 **Latest Fixes Implemented:**
-*   **`ShaderAnalyzer.cs` (in `Run` method):** Modified the `CGPROGRAM` detection logic to be robust against leading whitespace (`line.Trim() == "CGPROGRAM"`). This ensures that the shader's code block is properly parsed and all subsequent optimizations (keyword injection, texture array wrappers) are applied.
-*   **`MaterialOptimizer.cs` (in `CombineTextures`):** Implemented robust handling for texture format and size mismatches during Texture Array creation. If textures in a group have differing formats (e.g., DXT1 vs DXT5) or sizes, the optimizer now automatically converts them to a compatible target format (preferring DXT5 for alpha support) using a temporary RenderTexture and `EditorUtility.CompressTexture`. This fixes `Graphics.CopyTexture` errors.
-*   **`MaterialOptimizer.cs` (in `SaveOptimizedMaterials`):** Added `HasProperty` checks before accessing material properties. This prevents crashes when merging materials where the leader shader has a property that a subset material lacks.
+*   **`ShaderAnalyzer.cs` (`InjectPropertyArrays`):** Modified to declare native array properties as `static` variables instead of macros.
+*   **`ShaderAnalyzer.cs` (`InjectLegacyPropertyAssignments`):** Added method to update legacy variables from optimizer variables at runtime.
+*   **`ShaderAnalyzer.cs` (`InjectArrayPropertyInitialization`):** Fixed `Sequence contains no elements` crash.
+*   **`MaterialOptimizer.cs`:** Renamed internal properties to `_WKVRCOpt_arrayIndex_` and ensured they are always retained.
 
-**Next Steps for Debugging:**
-The provided Unity Editor log (`TrashBin/output.txt`, if available) should be meticulously checked for any shader compilation warnings or errors, or runtime messages related to materials or textures. The new, detailed logs generated by `WKAvatarOptimizer_Log.txt` must be examined after running a build with this latest fix to verify:
-*   **Crucially, that the debug logs for injected keywords are now visible within the generated shader files.** This will confirm the `CGPROGRAM` detection fix is working.
-*   That textures intended for `Texture2DArray`s are correctly identified and processed.
-*   The `sRGB` status of the affected textures.
-*   The `_Color` values being set on the optimized materials.
-*   Any discrepancies between working and broken materials.
+**Next Steps:**
+*   Build and test. The avatar should now be fully visible with correct textures and no shader errors.

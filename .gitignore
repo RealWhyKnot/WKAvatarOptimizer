@@ -16,6 +16,7 @@ GEMINI.md
 Temp_Ref/
 *_Data/
 DownloadReference.ps1
+Plugins/
 
 # Unity generated
 *.meta

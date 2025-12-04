@@ -715,6 +715,29 @@ namespace WKAvatarOptimizer.Core
             return result;
         }
 
+        public List<T> GetUsedComponentsInChildren<T>() where T : Component
+        {
+            Profiler.StartSection("GetUsedComponentsInChildren()");
+            var result = new List<T>();
+            var stack = new Stack<Transform>();
+            var alwaysDisabledGameObjects = FindAllAlwaysDisabledGameObjects();
+            var unusedComponents = FindAllUnusedComponents();
+            stack.Push(gameObject.transform);
+            while (stack.Count > 0)
+            {
+                var currentTransform = stack.Pop();
+                if (currentTransform.gameObject.CompareTag("EditorOnly") || alwaysDisabledGameObjects.Contains(currentTransform))
+                    continue;
+                result.AddRange(currentTransform.GetComponents<T>().Where(c => c != null && !unusedComponents.Contains(c)));
+                foreach (Transform child in currentTransform)
+                {
+                    stack.Push(child);
+                }
+            }
+            Profiler.EndSection();
+            return result;
+        }
+
         private HashSet<Transform> FindReferencedTransforms(Component component)
         {
             using (var serializedObject = new SerializedObject(component))

@@ -7,6 +7,9 @@ $ErrorActionPreference = "Stop"
 $ScriptDir = $PSScriptRoot
 $DependenciesDir = Join-Path $ScriptDir "Dependencies"
 $TempDir = Join-Path $ScriptDir "Temp"
+$WKAPluginsDir = Join-Path $ScriptDir "WKAvatarOptimizer\Plugins"
+$WKAPluginsX64Dir = Join-Path $WKAPluginsDir "x86_64"
+$WKAPluginsNativeDir = Join-Path $WKAPluginsDir "Native\SpirvReflect"
 
 # --- Configuration ---
 $VRCUrls = @{
@@ -14,11 +17,19 @@ $VRCUrls = @{
     "Avatars" = "https://github.com/vrchat/packages/releases/download/3.10.0/com.vrchat.avatars-3.10.0.zip"
 }
 
+$DxcRepoUrl = "https://github.com/microsoft/DirectXShaderCompiler"
+$SpirvReflectRepoUrl = "https://github.com/KhronosGroup/SPIRV-Reflect"
+
 # --- Setup Directories ---
 if (Test-Path $TempDir) { Remove-Item $TempDir -Recurse -Force }
 New-Item -ItemType Directory -Path $TempDir -Force | Out-Null
 if (Test-Path $DependenciesDir) { Remove-Item $DependenciesDir -Recurse -Force }
 New-Item -ItemType Directory -Path $DependenciesDir -Force | Out-Null
+if (Test-Path $WKAPluginsX64Dir) { Remove-Item $WKAPluginsX64Dir -Recurse -Force }
+New-Item -ItemType Directory -Path $WKAPluginsX64Dir -Force | Out-Null
+if (Test-Path $WKAPluginsNativeDir) { Remove-Item $WKAPluginsNativeDir -Recurse -Force }
+New-Item -ItemType Directory -Path $WKAPluginsNativeDir -Force | Out-Null
+
 
 function Download-File {
     param ($Url, $Dest)
@@ -27,6 +38,7 @@ function Download-File {
         Invoke-WebRequest -Uri $Url -OutFile $Dest -UseBasicParsing -UserAgent "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
     } catch {
         Write-Warning "Failed to download $Url. Error: $_"
+        exit 1
     }
 }
 
@@ -37,10 +49,12 @@ function Extract-Zip {
         Expand-Archive -Path $Zip -DestinationPath $Dest -Force
     } catch {
         Write-Warning "Failed to extract $Zip"
+        exit 1
     }
 }
 
 # --- 1. VRChat SDK ---
+Write-Host "--- Downloading VRChat SDK ---"
 Download-File $VRCUrls["Base"] "$TempDir\VRC_Base.zip"
 Extract-Zip "$TempDir\VRC_Base.zip" "$TempDir\VRC_Base"
 
@@ -76,9 +90,48 @@ foreach ($targetName in $VRC_Dlls.Keys) {
     if (-not $found) { Write-Warning "Could not find $targetName" }
 }
 
-# --- 2. Unity DLLs (Locate Installation) ---
-Write-Host "Locating Unity installation..."
+# --- 2. DirectX Shader Compiler (DXC) ---
+Write-Host "--- Downloading DXC ---"
+$dxcReleasePageContent = Invoke-WebRequest -Uri "$DxcRepoUrl/releases/latest" -UserAgent "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" | Select-Object -ExpandProperty Content
+$expandedAssetsUrl = $dxcReleasePageContent | Select-String -Pattern 'src="([^"]*releases/expanded_assets/.*?)"' | ForEach-Object { $_.Matches[0].Groups[1].Value } | Select-Object -First 1
+$expandedAssetsFullUrl = $expandedAssetsUrl
 
+Write-Host "Fetching expanded assets from: $expandedAssetsFullUrl"
+$expandedAssetsContent = Invoke-WebRequest -Uri $expandedAssetsFullUrl -UserAgent "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" | Select-Object -ExpandProperty Content
+
+$dxcZipRelativeUrl = $expandedAssetsContent | Select-String -Pattern 'href="([^"]*dxc_\d{4}_\d{2}_\d{2}\.zip)"' | ForEach-Object { $_.Matches[0].Groups[1].Value } | Select-Object -First 1
+$dxcZipFullUrl = "https://github.com" + $dxcZipRelativeUrl
+
+if (-not $dxcZipFullUrl) {
+    Write-Warning "Could not find DXC zip download URL."
+    exit 1
+}
+
+Download-File $dxcZipFullUrl "$TempDir\dxc.zip"
+Extract-Zip "$TempDir\dxc.zip" "$TempDir\dxc_extracted"
+
+# Copy dxcompiler.dll and dxil.dll
+Copy-Item (Join-Path "$TempDir\dxc_extracted" "bin\x64\dxcompiler.dll") $WKAPluginsX64Dir -Force
+Copy-Item (Join-Path "$TempDir\dxc_extracted" "bin\x64\dxil.dll") $WKAPluginsX64Dir -Force
+Write-Host "  -> Copied dxcompiler.dll and dxil.dll to $WKAPluginsX64Dir" -ForegroundColor Green
+
+# --- 3. SPIRV-Reflect (Source Files) ---
+Write-Host "--- Downloading SPIRV-Reflect Source ---"
+# Clone the repository to a temporary location
+Remove-Item "$TempDir\SPIRV-Reflect" -Recurse -ErrorAction SilentlyContinue
+Invoke-Expression "git clone $SpirvReflectRepoUrl ""$TempDir\SPIRV-Reflect""" # Using Invoke-Expression because git clone is an external command
+if (-not (Test-Path "$TempDir\SPIRV-Reflect")) {
+    Write-Warning "Failed to clone SPIRV-Reflect repository."
+    exit 1
+}
+
+# Copy relevant source files
+Copy-Item (Join-Path "$TempDir\SPIRV-Reflect" "spirv_reflect.h") $WKAPluginsNativeDir -Force
+Copy-Item (Join-Path "$TempDir\SPIRV-Reflect" "spirv_reflect.c") $WKAPluginsNativeDir -Force
+Write-Host "  -> Copied spirv_reflect.h and spirv_reflect.c to $WKAPluginsNativeDir" -ForegroundColor Green
+
+# --- 4. Unity DLLs (Locate Installation) ---
+Write-Host "--- Locating Unity installation ---"
 $UnityHubPaths = @(
     "C:\Program Files\Unity\Hub\Editor",
     "C:\Program Files\Unity\Editor",
@@ -149,6 +202,7 @@ if ($UnityInstallPath) {
     }
 } else {
     Write-Error "Could not locate a valid Unity installation."
+    exit 1
 }
 
 # Cleanup

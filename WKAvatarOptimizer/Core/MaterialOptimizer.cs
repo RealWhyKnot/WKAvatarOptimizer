@@ -212,317 +212,164 @@ namespace WKAvatarOptimizer.Core
             string path,
             List<List<int>> mergedMeshIndices = null)
         {
-            if (!(sources.Any(list => list.Count > 1) || meshToggleCount > 1))
-            {
-                // Even if just one source, we likely want to optimize if WritePropertiesAsStaticValues is true
-                // But the original check was:
-                // if (!(settings.WritePropertiesAsStaticValues || sources.Any(list => list.Count > 1) || (meshToggleCount > 1 && settings.MergeSkinnedMeshesWithShaderToggle == 1)))
-                // Since WritePropertiesAsStaticValues is true, this check is always false (negated true is false).
-                // So we proceed.
-            }
-            if (!context.fusedAnimatedMaterialProperties.TryGetValue(path, out var usedMaterialProps))
-                usedMaterialProps = new HashSet<string>();
-            if (mergedMeshIndices == null)
-                mergedMeshIndices = sources.Select(s => Enumerable.Range(0, meshToggleCount).ToList()).ToList();
-            HashSet<(string name, bool isVector)> defaultAnimatedProperties = null;
-            var animatedPropertyOnMeshID = new Dictionary<string, bool[]>();
-            context.oldPathToMergedPaths.TryGetValue(path, out var allOriginalMeshPaths);
-            var originalMeshPaths = sources.Select(l => l.SelectMany(t => t.paths).Distinct().ToList()).ToList();
-            if (allOriginalMeshPaths != null && (sources.Count != 1 || sources[0].Count != 1)) {
-                defaultAnimatedProperties = new HashSet<(string name, bool isVector)>();
-                for (int i = 0; i < allOriginalMeshPaths.Count; i++) {
-                    Dictionary<string, Vector4> defaultValuesForCurrentPath = null;
-                    Material defaultMaterialForCurrentPath = GetFirstMaterialOnPath(allOriginalMeshPaths[i][0]);
-                    if (!context.animatedMaterialPropertyDefaultValues.TryGetValue(path, out defaultValuesForCurrentPath))
-                    {
-                        defaultValuesForCurrentPath = new Dictionary<string, Vector4>();
-                        context.animatedMaterialPropertyDefaultValues[path] = defaultValuesForCurrentPath;
-                    }
-                    if (optimizer.fxLayerOptimizer.FindAllAnimatedMaterialProperties().TryGetValue(allOriginalMeshPaths[i][0], out var animatedProps)) {
-                        foreach (var prop in animatedProps) {
-                            string name = prop;
-                            bool isVector = name.EndsWith(".x") || name.EndsWith(".r");
-                            if (isVector) {
-                                name = name.Substring(0, name.Length - 2);
-                            } else if ((name.Length > 2 && name[name.Length - 2] == '.')
-                                    || (!isVector && (animatedProps.Contains($"{name}.x") || animatedProps.Contains($"{name}.r")))) {
-                                continue;
-                            }
-                            if (optimizer.meshOptimizer.GetSameAnimatedPropertiesOnMergedMesh(path).Contains(name)) {
-                                continue;
-                            }
-                            defaultAnimatedProperties.Add( ($"WKVRCOptimizer{name}_ArrayIndex{i}", isVector));
-                            defaultAnimatedProperties.Add((name, isVector));
-                            if (!animatedPropertyOnMeshID.TryGetValue(name, out var animatedOnMesh)) {
-                                animatedOnMesh = new bool[allOriginalMeshPaths.Count];
-                                animatedPropertyOnMeshID[name] = animatedOnMesh;
-                            }
-                            animatedOnMesh[i] = true;
-                            if (defaultMaterialForCurrentPath != null && defaultMaterialForCurrentPath.HasProperty(name)) 
-                            {
-                                defaultValuesForCurrentPath[$"WKVRCOptimizer{name}_ArrayIndex{i}"] = isVector
-                                    ? defaultMaterialForCurrentPath.GetVector(name)
-                                    : new Vector4(defaultMaterialForCurrentPath.GetFloat(name), 0, 0, 0);
-                            }
-                        }
-                    }
-                    defaultAnimatedProperties.Add( ($"_IsActiveMesh{i}", false));
-                }
-            }
-            if (!optimizer.fxLayerOptimizer.DoesFXLayerUseWriteDefaults())
-                animatedPropertyOnMeshID = null;
             var materials = new Material[sources.Count];
-            var parsedShader = new ParsedShader[sources.Count];
-            var sanitizedMaterialNames = new string[sources.Count];
-            var setShaderKeywords = new List<string>[sources.Count];
-            var replace = new Dictionary<string, string>[sources.Count];
-            var texturesToMerge = new HashSet<string>[sources.Count];
-            var propertyTextureArrayIndex = new Dictionary<string, int>[sources.Count];
-            var arrayPropertyValues = new Dictionary<string, (string type, List<string> values)>[sources.Count];
-            var texturesToCheckNull = new Dictionary<string, string>[sources.Count];
-            var animatedPropertyValues = new Dictionary<string, string>[sources.Count];
-            var poiUsedPropertyDefines = new Dictionary<string, bool>[sources.Count];
-            var stripShadowVariants = new bool[sources.Count];
+
             for (int i = 0; i < sources.Count; i++)
             {
-                var source = sources[i].Select(t => t.mat).ToList();
-                parsedShader[i] = ShaderAnalyzer.Parse(source[0]?.shader);
-                if (parsedShader[i] == null || !parsedShader[i].parsedCorrectly)
+                var sourceList = sources[i];
+                if (sourceList == null || sourceList.Count == 0) continue;
+
+                // 1. Analyze the "Leader" material (first in the list) to determine the Universal Shader configuration
+                Material leaderMat = sourceList[0].mat;
+                var ir = ShaderAnalyzer.Parse(leaderMat.shader, leaderMat);
+
+                if (ir == null)
                 {
-                    materials[i] = source[0];
-                    Debug.LogWarning($"[MaterialOptimizer] Skipping material {source[0]?.name} due to unparsable shader.");
+                    context.Log($"[MaterialOptimizer] Failed to parse shader for {leaderMat.name}. Skipping optimization for this group.");
+                    materials[i] = leaderMat;
                     continue;
                 }
+
+                // 2. Create the Universal Material
+                // We assume UniversalAvatar.shader is available in the project.
+                // Ideally, we find it by GUID or name.
+                var universalShader = Shader.Find("WKAvatarOptimizer/UniversalAvatar");
+                if (universalShader == null)
+                {
+                    context.Log("[MaterialOptimizer] Fatal: 'WKAvatarOptimizer/UniversalAvatar' shader not found!");
+                    materials[i] = leaderMat;
+                    continue;
+                }
+
+                var optimizedMaterial = new Material(universalShader);
+                optimizedMaterial.name = "m_opt_" + leaderMat.name;
                 
-                char[] invalidChars = System.IO.Path.GetInvalidFileNameChars()
-                    .Append('\'')
-                    .ToArray();
-                stripShadowVariants[i] = source[0].renderQueue > 2500;
-                sanitizedMaterialNames[i] = "s_" + System.IO.Path.GetFileNameWithoutExtension(parsedShader[i].filePath)
-                    + " " + string.Join("_", source[0].name.Split(invalidChars, System.StringSplitOptions.RemoveEmptyEntries));
-                texturesToMerge[i] = new HashSet<string>();
-                propertyTextureArrayIndex[i] = new Dictionary<string, int>();
-                arrayPropertyValues[i] = new Dictionary<string, (string type, List<string> values)>();
-                poiUsedPropertyDefines[i] = new Dictionary<string, bool>();
-                foreach (var mat in source)
-                {
-                    foreach (var prop in parsedShader[i].properties)
-                    {
-                        if (!mat.HasProperty(prop.name))
-                            continue;
-                        switch (prop.type)
-                        {
-                            case ParsedShader.Property.Type.Float:
-                                (string type, List<string> values) propertyArray;
-                                if (!arrayPropertyValues[i].TryGetValue(prop.name, out propertyArray))
-                                {
-                                    propertyArray.type = "float";
-                                    propertyArray.values = new List<string>();
-                                    arrayPropertyValues[i][prop.name] = propertyArray;
-                                }
-                                var value = mat.GetFloat(prop.name);
-                                value = (prop.hasGammaTag) ? Mathf.GammaToLinearSpace(value) : value;
-                                propertyArray.values.Add($"{value}");
-                            break;
-                            case ParsedShader.Property.Type.Integer:
-                                if (!arrayPropertyValues[i].TryGetValue(prop.name, out propertyArray))
-                                {
-                                    propertyArray.type = "int";
-                                    propertyArray.values = new List<string>();
-                                    arrayPropertyValues[i][prop.name] = propertyArray;
-                                }
-                                propertyArray.values.Add("" + mat.GetInteger(prop.name));
-                            break;
-                            case ParsedShader.Property.Type.Color:
-                            case ParsedShader.Property.Type.ColorHDR:
-                            case ParsedShader.Property.Type.Vector:
-                                if (!arrayPropertyValues[i].TryGetValue(prop.name, out propertyArray))
-                                {
-                                    propertyArray.type = "float4";
-                                    propertyArray.values = new List<string>();
-                                    arrayPropertyValues[i][prop.name] = propertyArray;
-                                }
-                                var col = mat.GetColor(prop.name);
-                                col = (prop.type == ParsedShader.Property.Type.Color || prop.hasGammaTag) ? col.linear : col;
-                                propertyArray.values.Add($"float4({col.r}, {col.g}, {col.b}, {col.a})");
-                                break;
-                            case ParsedShader.Property.Type.Texture2D:
-                                if (!arrayPropertyValues[i].TryGetValue("arrayIndex" + prop.name, out var textureArray))
-                                {
-                                    arrayPropertyValues[i]["arrayIndex" + prop.name] = ("float", new List<string>());
-                                    arrayPropertyValues[i]["shouldSample" + prop.name] = ("bool", new List<string>());
-                                }
-                                var tex = mat.GetTexture(prop.name);
-                                var tex2D = tex as Texture2D;
-                                int index = 0;
-                                if (tex2D != null)
-                                {
-                                    int texArrayIndex = context.textureArrayLists.FindIndex(l => l.Contains(tex2D));
-                                    if (texArrayIndex != -1)
-                                    {
-                                                                            index = context.textureArrayLists[texArrayIndex].IndexOf(tex2D);
-                                                                            texturesToMerge[i].Add(prop.name);
-                                                                            context.Log($"[MaterialOptimizer] Material {source[0].name}: Added texture {prop.name} to texturesToMerge (texArrayIndex: {texArrayIndex}, index: {index})");
-                                                                            propertyTextureArrayIndex[i][prop.name] = texArrayIndex;
-                                                                        }
-                                                                        else
-                                                                        {
-                                                                            context.Log($"[MaterialOptimizer] Material {source[0].name}: Texture {prop.name} ({tex2D?.name}) not found in texture arrays. Keeping as standard texture.");
-                                                                        }                                }
-                                arrayPropertyValues[i]["arrayIndex" + prop.name].values.Add("" + index);
-                                arrayPropertyValues[i]["shouldSample" + prop.name].values.Add((tex != null).ToString().ToLowerInvariant());
-                                if (!arrayPropertyValues[i].TryGetValue(prop.name + "_TexelSize", out propertyArray))
-                                {
-                                    propertyArray.type = "float4";
-                                    propertyArray.values = new List<string>();
-                                    arrayPropertyValues[i][prop.name + "_TexelSize"] = propertyArray;
-                                }
-                                var texelSize = new Vector2(tex?.width ?? 4, tex?.height ?? 4);
-                                propertyArray.values.Add($"float4(1.0 / {texelSize.x}, 1.0 / {texelSize.y}, {texelSize.x}, {texelSize.y})");
-                                break;
-                        }
-                    }
-                }
+                // Apply IR configuration (Keywords, Render State, initial Properties from leader)
+                ir.ApplyToMaterial(optimizedMaterial, universalShader);
 
-                replace[i] = new Dictionary<string, string>();
-                foreach (var tuple in arrayPropertyValues[i].ToList())
-                {
-                    if (usedMaterialProps.Contains(tuple.Key) && !(meshToggleCount > 1))
-                    {
-                        arrayPropertyValues[i].Remove(tuple.Key);
-                    }
-                    else if (tuple.Value.values.All(v => v == tuple.Value.values[0]))
-                    {
-                        arrayPropertyValues[i].Remove(tuple.Key);
-                        replace[i][tuple.Key] = tuple.Value.values[0];
-                    }
-                }
+                // 3. Create Texture Arrays for each texture property defined in IR
+                // We must ensure the array size matches sourceList.Count
+                // Index j in the array corresponds to sourceList[j]
                 
-                // if (!settings.WritePropertiesAsStaticValues) block removed as we assume true
+                // Map of IR texture property name -> List of textures for the array
+                var textureArraysMap = new Dictionary<string, List<Texture2D>>();
 
-                texturesToCheckNull[i] = new Dictionary<string, string>();
-                foreach (var prop in parsedShader[i].properties)
+                // Initialize lists
+                var textureProps = new[] { 
+                    (ir.baseColor, "_BaseMap"), (ir.normalMap, "_NormalMap"), 
+                    (ir.metallicGlossMap, "_MetallicGlossMap"), (ir.shadeMap, "_ShadeMap"), 
+                    (ir.rampTexture, "_RampTexture"), (ir.matcapTexture, "_MatcapTexture"),
+                    (ir.matcapTexture2, "_MatcapTexture2"), (ir.outlineMask, "_OutlineMask"),
+                    (ir.emissionMap, "_EmissionMap"), (ir.dissolveMask, "_DissolveMask"),
+                    (ir.detailMap, "_DetailMap")
+                };
+
+                foreach (var (prop, name) in textureProps)
                 {
-                    if (prop.type == ParsedShader.Property.Type.Texture2D)
-                    {
-                        if (arrayPropertyValues[i].ContainsKey("shouldSample" + prop.name))
-                        {
-                            texturesToCheckNull[i][prop.name] = prop.defaultValue;
-                        }
-                    }
-                    switch (prop.type)
-                    {
-                        case ParsedShader.Property.Type.Texture2D:
-                        case ParsedShader.Property.Type.Texture2DArray:
-                        case ParsedShader.Property.Type.Texture3D:
-                        case ParsedShader.Property.Type.TextureCube:
-                        case ParsedShader.Property.Type.TextureCubeArray:
-                            bool isUsed = arrayPropertyValues[i].ContainsKey($"shouldSample{prop.name}")
-                                || source[0].GetTexture(prop.name) != null;
-                            poiUsedPropertyDefines[i][$"PROP{prop.name.ToUpper()}"] = isUsed;
-                            break;
-                    }
+                    textureArraysMap[name] = new List<Texture2D>();
                 }
 
-                animatedPropertyValues[i] = new Dictionary<string, string>();
-                if (meshToggleCount > 1) {
-                    foreach (var propName in usedMaterialProps) {
-                        if (optimizer.meshOptimizer.GetSameAnimatedPropertiesOnMergedMesh(path).Contains(propName)) {
-                            arrayPropertyValues[i].Remove(propName);
-                            replace[i].Remove(propName);
-                            continue;
-                        }
-                        if (originalMeshPaths != null) {
-                            bool skipProp = true;
-                            foreach (var originalPath in originalMeshPaths[i]) {
-                                if (optimizer.fxLayerOptimizer.FindAllAnimatedMaterialProperties().TryGetValue(originalPath, out var props)) {
-                                    if (props.Contains(propName) || props.Contains(propName + ".x") || props.Contains(propName + ".r")) {
-                                        skipProp = false;
-                                        break;
-                                    }
-                                }
+                // Collect textures
+                for (int j = 0; j < sourceList.Count; j++)
+                {
+                    Material mat = sourceList[j].mat;
+                    
+                    // Parse each material to get its specific texture assignments using PropertyMapper logic
+                    // (Or rely on simple property lookup if we assume same shader family)
+                    // For robustness, let's use the property names mapped in the Leader IR, 
+                    // assuming the Leader's structure applies to all (which IsShaderSuperset ensures).
+                    
+                    // We need to find which property on 'mat' corresponds to the IR slot.
+                    // Since we don't have a per-material IR here efficiently, we assume 
+                    // the property names found in the Leader IR's parsing logic apply.
+                    // Wait, PropertyMapper maps based on *names*. 
+                    // If Mat A uses _MainTex and Mat B uses _BaseMap, and they were merged...
+                    // IsShaderSuperset ensures they are compatible.
+                    
+                    // We'll use a simplified approach: Ask PropertyMapper what property on 'mat' maps to the role.
+                    // Actually, `ir` has the texture *value* from leader. It doesn't store the *property name* it came from.
+                    // We need to look up the texture again.
+                    
+                    // To do this correctly without re-parsing everything:
+                    // Iterate all texture properties on `mat`, map them to roles, fill slots.
+                    
+                    // Helper to get texture for a role from a material
+                    Texture2D GetTextureForRole(Material m, PropertyMapper.TextureRole targetRole)
+                    {
+                        var texNames = m.GetTexturePropertyNames();
+                        foreach (var tName in texNames)
+                        {
+                            if (PropertyMapper.MapTextureToRole(tName) == targetRole)
+                            {
+                                return m.GetTexture(tName) as Texture2D;
                             }
-                            if (skipProp)
-                                continue;
                         }
-                        if (parsedShader[i].propertyTable.TryGetValue(propName, out var prop)) {
-                            string type = "float4";
-                            if (prop.type == ParsedShader.Property.Type.Float)
-                                type = "float";
-                            if (prop.type == ParsedShader.Property.Type.Integer)
-                                type = "int";
-                            animatedPropertyValues[i][propName] = type;
-                        }
+                        return null;
                     }
+
+                    textureArraysMap["_BaseMap"].Add(GetTextureForRole(mat, PropertyMapper.TextureRole.BaseColor));
+                    textureArraysMap["_NormalMap"].Add(GetTextureForRole(mat, PropertyMapper.TextureRole.Normal));
+                    textureArraysMap["_MetallicGlossMap"].Add(GetTextureForRole(mat, PropertyMapper.TextureRole.Metallic) ?? GetTextureForRole(mat, PropertyMapper.TextureRole.Roughness));
+                    textureArraysMap["_ShadeMap"].Add(GetTextureForRole(mat, PropertyMapper.TextureRole.Shade));
+                    textureArraysMap["_RampTexture"].Add(GetTextureForRole(mat, PropertyMapper.TextureRole.Ramp));
+                    textureArraysMap["_MatcapTexture"].Add(GetTextureForRole(mat, PropertyMapper.TextureRole.Matcap));
+                    // Secondary matcap logic is complex, simplified for now
+                    textureArraysMap["_MatcapTexture2"].Add(null); 
+                    textureArraysMap["_OutlineMask"].Add(GetTextureForRole(mat, PropertyMapper.TextureRole.Outline));
+                    textureArraysMap["_EmissionMap"].Add(GetTextureForRole(mat, PropertyMapper.TextureRole.Emission));
+                    textureArraysMap["_DissolveMask"].Add(GetTextureForRole(mat, PropertyMapper.TextureRole.Dissolve));
+                    textureArraysMap["_DetailMap"].Add(GetTextureForRole(mat, PropertyMapper.TextureRole.Detail));
                 }
 
-                                    setShaderKeywords[i] = source[0].shaderKeywords.ToList();
-                    context.Log($"[MaterialOptimizer] Material {source[0].name}: Collected {setShaderKeywords[i].Count} keywords: {string.Join(", ", setShaderKeywords[i])}");            }
-
-            var optimizedShader = new ShaderOptimizer.OptimizedShader[sources.Count];
-            var basicMergedMeshPaths = allOriginalMeshPaths?.Select(list => string.Join(", ", list)).ToList();
-            Profiler.StartSection("ShaderOptimizer.Run()");
-            Parallel.For(0, sources.Count, i =>
-            {
-                if (parsedShader[i] != null && parsedShader[i].parsedCorrectly)
+                // Generate and Assign Arrays
+                var texArraysToSet = new List<(string name, Texture2DArray array)>();
+                foreach (var kvp in textureArraysMap)
                 {
-                    optimizedShader[i] = ShaderOptimizer.Run(
-                        parsedShader[i],
-                        replace[i],
-                        meshToggleCount,
-                        basicMergedMeshPaths,
-                        i == 0 ? defaultAnimatedProperties : null,
-                        mergedMeshIndices[i],
-                        arrayPropertyValues[i],
-                        texturesToCheckNull[i],
-                        texturesToMerge[i],
-                        animatedPropertyValues[i],
-                        setShaderKeywords[i],
-                        poiUsedPropertyDefines[i],
-                        sanitizedMaterialNames[i],
-                        stripShadowVariants[i],
-                        animatedPropertyOnMeshID
-                    );
-                }
-            });
-            Profiler.EndSection();
+                    var textures = kvp.Value;
+                    // Only create array if there is at least one non-null texture
+                    if (textures.All(t => t == null)) continue;
 
-            for (int i = 0; i < sources.Count; i++)
-            {
-                var source = sources[i].Select(t => t.mat).ToList();
-                if (parsedShader[i] == null || !parsedShader[i].parsedCorrectly)
-                    continue;
+                    // Fill nulls with a default texture (e.g., white/black/bump) based on role
+                    // For simplicity, CombineTextures can handle nulls if we guide it, 
+                    // OR we replace nulls here.
+                    // Let's replace nulls with the *first non-null* texture to ensure format compatibility,
+                    // or a generated default if all else fails.
+                    var templateTex = textures.FirstOrDefault(t => t != null);
+                    if (templateTex == null) continue; // Should be caught by All(null) check
 
-                optimizer.DisplayProgressBar($"Optimizing shader {source[0].shader.name} ({i + 1}/{sources.Count})");
-                var shaderName = optimizedShader[i].name;
-                var shaderFilePath = AssetDatabase.GenerateUniqueAssetPath(context.trashBinPath + shaderName + ".shader");
-                var name = System.IO.Path.GetFileNameWithoutExtension(shaderFilePath);
-                optimizedShader[i].SetName(name);
-                foreach (var opt in optimizedShader[i].files)
-                {
-                    var filePath = shaderFilePath;
-                    if (opt.name != "Shader")
+                    for (int k = 0; k < textures.Count; k++)
                     {
-                        filePath = context.trashBinPath + opt.name;
+                        if (textures[k] == null)
+                        {
+                            // Ideally use a specific default (black for emission, normal for bump).
+                            // Using templateTex is a safe fallback for format match.
+                            textures[k] = templateTex; 
+                        }
                     }
-                    System.IO.File.WriteAllLines(filePath, opt.lines);
-                    context.optimizedMaterialImportPaths.Add(filePath);
+
+                    var texArray = CombineTextures(textures);
+                    texArraysToSet.Add((kvp.Key, texArray));
+                    // Note: CombineTextures adds to context.textureArrays internally if we used the old flow,
+                    // but here we call it directly. We should ensure it's tracked.
+                    if (!context.textureArrays.Contains(texArray))
+                        context.textureArrays.Add(texArray);
                 }
-                var optimizedMaterial = new Material(Shader.Find("Unlit/Texture"));
-                optimizedMaterial.shader = null;
-                optimizedMaterial.name = "m_" + name.Substring(2);
+
+                if (texArraysToSet.Count > 0)
+                {
+                    context.texArrayPropertiesToSet[optimizedMaterial] = texArraysToSet;
+                }
+
                 materials[i] = optimizedMaterial;
-                context.optimizedMaterials.Add(optimizedMaterial, (optimizedMaterial, source, optimizedShader[i]));
-                var arrayList = new List<(string name, Texture2DArray array)>();
-                foreach (var texArray in propertyTextureArrayIndex[i])
-                {
-                    arrayList.Add((texArray.Key, context.textureArrays[texArray.Value]));
-                }
-                if (arrayList.Count > 0)
-                {
-                    context.texArrayPropertiesToSet[optimizedMaterial] = arrayList;
-                }
+                
+                // Register with context for saving later
+                // We use a dummy ParsedShader or null here because we moved away from it.
+                // The SaveOptimizedMaterials method relies on context.optimizedMaterials.
+                // We need to adapt SaveOptimizedMaterials or provide a dummy compatible struct.
+                // For now, we will null the optimizerResult part and update SaveOptimizedMaterials to handle it.
+                context.optimizedMaterials.Add(optimizedMaterial, (optimizedMaterial, sourceList.Select(t => t.mat).ToList(), null));
             }
+
             return materials;
         }
 
@@ -762,7 +609,7 @@ namespace WKAvatarOptimizer.Core
         {
             foreach (var source in sources)
             {
-                var parsedShader = ShaderAnalyzer.Parse(source[0]?.shader);
+                var parsedShader = ShaderAnalyzer.Parse(source[0]?.shader, source[0]);
                 if (parsedShader == null || !parsedShader.parsedCorrectly)
                     continue;
                 var propertyTextureLists = new Dictionary<string, List<Texture2D>>();
@@ -1244,7 +1091,7 @@ namespace WKAvatarOptimizer.Core
                             break;
                         }
                         
-                        if (IsShaderSuperset(candidate.material.shader, leader.shader, out string promoReason))
+                        if (IsShaderSuperset(candidate.material.shader, candidate.material, leader.shader, leader, out string promoReason))
                         {
                              if (CanCombineMaterialsWith(matched[i], candidate, out string failReason2, true))
                              {
@@ -1276,54 +1123,98 @@ namespace WKAvatarOptimizer.Core
             return matched;
         }
 
-        private bool IsShaderSuperset(Shader shaderSuper, Shader shaderSub, out string reason)
+        private bool IsShaderSuperset(Shader shaderSuper, Material materialSuper, Shader shaderSub, Material materialSub, out string reason)
         {
-            if (shaderSuper == shaderSub) { reason = ""; return true; }
+            if (shaderSuper == shaderSub && materialSuper == materialSub) { reason = ""; return true; }
             if (shaderSuper == null || shaderSub == null) { reason = "Null shader"; return false; }
 
-            var parsedSuper = ShaderAnalyzer.Parse(shaderSuper);
-            var parsedSub = ShaderAnalyzer.Parse(shaderSub);
+            var irSuper = ShaderAnalyzer.Parse(shaderSuper, materialSuper);
+            var irSub = ShaderAnalyzer.Parse(shaderSub, materialSub);
 
-            if (parsedSuper == null || !parsedSuper.parsedCorrectly) { reason = "Super Shader parse failed"; return false; }
-            if (parsedSub == null || !parsedSub.parsedCorrectly) { reason = "Sub Shader parse failed"; return false; }
+            if (irSuper == null) { reason = $"Super Shader '{shaderSuper.name}' parse failed."; return false; }
+            if (irSub == null) { reason = $"Sub Shader '{shaderSub.name}' parse failed."; return false; }
 
-            foreach (var propSub in parsedSub.properties)
+            // 1. Check Shading Model Compatibility
+            // A more comprehensive shading model can cover a simpler one.
+            // Unlit < Toon < PBR < Hybrid
+            // PBR cannot be covered by Toon, Toon cannot be covered by Unlit.
+            if (irSub.shadingModel == ShaderIR.ShadingModel.PBR && (irSuper.shadingModel != ShaderIR.ShadingModel.PBR && irSuper.shadingModel != ShaderIR.ShadingModel.Hybrid))
             {
-                if (!parsedSuper.propertyTable.TryGetValue(propSub.name, out var propSuper))
-                {
-                    reason = $"Missing property {propSub.name} in superset";
-                    return false;
-                }
-                if (propSuper.type != propSub.type)
-                {
-                    reason = $"Property type mismatch {propSub.name} ({propSuper.type} vs {propSub.type})";
-                    return false;
-                }
+                reason = $"Super shader '{irSuper.shadingModel}' cannot cover PBR shading model from '{irSub.shadingModel}'.";
+                return false;
+            }
+            if (irSub.shadingModel == ShaderIR.ShadingModel.Toon && (irSuper.shadingModel != ShaderIR.ShadingModel.Toon && irSuper.shadingModel != ShaderIR.ShadingModel.PBR && irSuper.shadingModel != ShaderIR.ShadingModel.Hybrid))
+            {
+                reason = $"Super shader '{irSuper.shadingModel}' cannot cover Toon shading model from '{irSub.shadingModel}'.";
+                return false;
+            }
+            if (irSub.shadingModel == ShaderIR.ShadingModel.Unlit && (irSuper.shadingModel != ShaderIR.ShadingModel.Unlit && irSuper.shadingModel != ShaderIR.ShadingModel.Toon && irSuper.shadingModel != ShaderIR.ShadingModel.PBR && irSuper.shadingModel != ShaderIR.ShadingModel.Hybrid))
+            {
+                reason = $"Super shader '{irSuper.shadingModel}' cannot cover Unlit shading model from '{irSub.shadingModel}'.";
+                return false;
             }
 
-            foreach (var passSub in parsedSub.passes)
+            // 2. Check Blend Mode Compatibility
+            // Opaque -> Cutout -> Alpha -> Additive/Premultiplied (in increasing order of permissiveness)
+            if (irSub.blendMode == ShaderIR.BlendMode.Premultiplied && irSuper.blendMode != ShaderIR.BlendMode.Premultiplied)
             {
-                string lightModeSub = "";
-                if (passSub.tags.TryGetValue("LightMode", out var lm)) lightModeSub = lm;
-                
-                bool found = false;
-                foreach (var passSuper in parsedSuper.passes)
-                {
-                    string lightModeSuper = "";
-                    if (passSuper.tags.TryGetValue("LightMode", out var lmA)) lightModeSuper = lmA;
-                    
-                    if (lightModeSuper == lightModeSub)
-                    {
-                        found = true;
-                        break;
-                    }
-                }
-                if (!found)
-                {
-                    reason = $"Missing pass with LightMode '{lightModeSub}' in superset";
-                    return false;
-                }
+                reason = $"Super shader '{irSuper.blendMode}' cannot cover Premultiplied blend mode from '{irSub.blendMode}'.";
+                return false;
             }
+            if (irSub.blendMode == ShaderIR.BlendMode.Additive && !(irSuper.blendMode == ShaderIR.BlendMode.Additive || irSuper.blendMode == ShaderIR.BlendMode.Premultiplied))
+            {
+                reason = $"Super shader '{irSuper.blendMode}' cannot cover Additive blend mode from '{irSub.blendMode}'.";
+                return false;
+            }
+            if (irSub.blendMode == ShaderIR.BlendMode.Alpha && !(irSuper.blendMode == ShaderIR.BlendMode.Alpha || irSuper.blendMode == ShaderIR.BlendMode.Additive || irSuper.blendMode == ShaderIR.BlendMode.Premultiplied))
+            {
+                reason = $"Super shader '{irSuper.blendMode}' cannot cover Alpha blend mode from '{irSub.blendMode}'.";
+                return false;
+            }
+            if (irSub.blendMode == ShaderIR.BlendMode.Cutout && !(irSuper.blendMode == ShaderIR.BlendMode.Cutout || irSuper.blendMode == ShaderIR.BlendMode.Alpha || irSuper.blendMode == ShaderIR.BlendMode.Additive || irSuper.blendMode == ShaderIR.BlendMode.Premultiplied))
+            {
+                reason = $"Super shader '{irSuper.blendMode}' cannot cover Cutout blend mode from '{irSub.blendMode}'.";
+                return false;
+            }
+            
+            // 3. Check Cull Mode Compatibility
+            // Off (double-sided) is most permissive. Front/Back are specific.
+            if (irSub.cullMode == ShaderIR.CullMode.Off && irSuper.cullMode != ShaderIR.CullMode.Off)
+            {
+                reason = $"Super shader '{irSuper.cullMode}' cannot cover Off (double-sided) cull mode from '{irSub.cullMode}'.";
+                return false;
+            }
+            // If sub is Front or Back, super must be the same or Off
+            if ((irSub.cullMode == ShaderIR.CullMode.Front || irSub.cullMode == ShaderIR.CullMode.Back) && irSuper.cullMode != irSub.cullMode && irSuper.cullMode != ShaderIR.CullMode.Off)
+            {
+                 reason = $"Super shader '{irSuper.cullMode}' must match sub shader '{irSub.cullMode}' cull mode or be Off.";
+                 return false;
+            }
+
+            // 4. Compare Texture Slots - Ensure all textures from sub are supported by super.
+            // Check if sub-shader uses a texture property type and if the super-shader has a slot for it.
+            // This implicitly assumes that if a texture property is set in the IR, the corresponding shader_feature is present.
+            if (irSub.baseColor.texture != null && irSuper.baseColor.texture == null) { reason = "Missing BaseColor texture slot."; return false; }
+            if (irSub.normalMap.texture != null && irSuper.normalMap.texture == null) { reason = "Missing NormalMap texture slot."; return false; }
+            if (irSub.metallicGlossMap.texture != null && irSuper.metallicGlossMap.texture == null) { reason = "Missing MetallicGlossMap texture slot."; return false; }
+            if (irSub.shadeMap.texture != null && irSuper.shadeMap.texture == null) { reason = "Missing ShadeMap texture slot."; return false; }
+            if (irSub.rampTexture.texture != null && irSuper.rampTexture.texture == null) { reason = "Missing RampTexture texture slot."; return false; }
+            if (irSub.matcapTexture.texture != null && irSuper.matcapTexture.texture == null) { reason = "Missing MatcapTexture texture slot."; return false; }
+            if (irSub.matcapTexture2.texture != null && irSuper.matcapTexture2.texture == null) { reason = "Missing MatcapTexture2 texture slot."; return false; }
+            if (irSub.rimIntensity > 0 && irSuper.rimIntensity == 0) { reason = "Sub shader uses Rim Lighting, but super does not."; return false; } // Assuming 0 intensity means no support
+            if (irSub.useOutline && !irSuper.useOutline) { reason = "Sub shader uses Outline, but super does not."; return false; }
+            if (irSub.emissionMap.texture != null && irSuper.emissionMap.texture == null) { reason = "Missing EmissionMap texture slot."; return false; }
+            if (irSub.dissolveMask.texture != null && irSuper.dissolveMask.texture == null) { reason = "Missing DissolveMask texture slot."; return false; }
+            if (irSub.detailMap.texture != null && irSuper.detailMap.texture == null) { reason = "Missing DetailMap texture slot."; return false; }
+
+            // 5. Check Custom Nodes - if sub has unmapped custom nodes, it cannot be a superset of a shader without them.
+            // This means we might need a CustomNode comparison logic. For now, a simple check:
+            if (irSub.customNodes.Any() && !irSuper.customNodes.Any())
+            {
+                reason = "Sub shader has custom features not explicitly handled by super shader's IR.";
+                return false;
+            }
+            // More sophisticated logic would involve comparing customNode names/categories.
 
             reason = "";
             return true;
@@ -1340,9 +1231,16 @@ namespace WKAvatarOptimizer.Core
                 return false;
             }
             
+            // Get ShaderIR for both materials
+            var irFirst = ShaderAnalyzer.Parse(firstMat.shader, firstMat);
+            var irCandidate = ShaderAnalyzer.Parse(candidateMat.shader, candidateMat);
+
+            if (irFirst == null) { failureReason = $"First material's shader '{firstMat.shader.name}' parse failed."; return false; }
+            if (irCandidate == null) { failureReason = $"Candidate material's shader '{candidateMat.shader.name}' parse failed."; return false; }
+
             if (!skipShaderCheck)
             {
-                if (!IsShaderSuperset(firstMat.shader, candidateMat.shader, out string reason))
+                if (!IsShaderSuperset(firstMat.shader, firstMat, candidateMat.shader, candidateMat, out string reason))
                 {
                     failureReason = $"Different shaders: {reason}";
                     return false;
@@ -1373,28 +1271,27 @@ namespace WKAvatarOptimizer.Core
 
             var listMaterials = list.Select(slot => slot.material).ToArray();
             var materialComparer = new MaterialAssetComparer();
-            bool allTheSameAsCandidate = listMaterials.All(mat => materialComparer.Equals(mat, candidateMat));
+            // This comparer is for exact material equality, not for ShaderIR compatibility. Keep for now.
+            // For universal shader, we don't care about exact material equality as much as IR compatibility.
+            // bool allTheSameAsCandidate = listMaterials.All(mat => materialComparer.Equals(mat, candidateMat));
             
+            // If more than one material in the group, and candidate is already in the group, it's fine.
             if (list.Count > 1 && listMaterials.Any(mat => mat == candidateMat))
                 return true;
 
-            for (int j = 0; j < firstMat.shader.passCount; j++)
+            // --- Start using ShaderIR for comparisons ---
+
+            // Check blend modes
+            if (irFirst.blendMode != irCandidate.blendMode)
             {
-                var lightModeValue = firstMat.shader.FindPassTagValue(j, new ShaderTagId("LightMode"));
-                if (!string.IsNullOrEmpty(lightModeValue.name))
-                {
-                    if (firstMat.GetShaderPassEnabled(lightModeValue.name) != candidateMat.GetShaderPassEnabled(lightModeValue.name))
-                    {
-                        failureReason = "Shader pass enabled mismatch.";
-                        return false;
-                    }
-                }
+                failureReason = $"Different blend modes: {irFirst.blendMode} vs {irCandidate.blendMode}.";
+                return false;
             }
 
-            var parsedShader = ShaderAnalyzer.Parse(candidateMat.shader);
-            if (parsedShader == null || parsedShader.parsedCorrectly == false)
+            // Check cull modes
+            if (irFirst.cullMode != irCandidate.cullMode)
             {
-                failureReason = "Shader parse failed.";
+                failureReason = $"Different cull modes: {irFirst.cullMode} vs {irCandidate.cullMode}.";
                 return false;
             }
 
@@ -1409,34 +1306,22 @@ namespace WKAvatarOptimizer.Core
                 return false;
             }
 
+            // For universal shader, `isVariant` might not be as relevant, as we always aim to reduce variants.
+            // VRCFallback tag might still be relevant if we respect it.
             bool hasAnyMaterialVariant = listMaterials.Any(m => m.isVariant) || candidateMat.isVariant;
             if (!hasAnyMaterialVariant && firstMat.GetTag("VRCFallback", false, "None") != candidateMat.GetTag("VRCFallback", false, "None"))
             {
                 failureReason = "Different VRCFallback.";
                 return false;
             }
-
-            foreach (var pass in parsedShader.passes)
+            
+            // If any custom nodes (unmapped features) are present in either, assume incompatibility unless explicitly handled.
+            // For now, if either has unknown/unhandled features, consider them not combinable.
+            // This is a conservative check. Can be refined if CustomNode comparison logic is added.
+            if (irFirst.customNodes.Any(cn => cn.category != "TextureBinding") || irCandidate.customNodes.Any(cn => cn.category != "TextureBinding")) // Allow unmapped textures for now
             {
-                if (pass.vertex == null || pass.fragment == null)
-                {
-                     failureReason = "Missing vertex or fragment shader in pass.";
-                     return false;
-                }
-                if (pass.hull != null || pass.domain != null)
-                {
-                     failureReason = "Tessellation shaders not supported.";
-                     return false;
-                }
-            }
-
-            foreach (var keyword in parsedShader.shaderFeatureKeyWords)
-            {
-                if (firstMat.IsKeywordEnabled(keyword) ^ candidateMat.IsKeywordEnabled(keyword))
-                {
-                    failureReason = $"Mismatched keyword {keyword}.";
-                    return false;
-                }
+                failureReason = "Materials have unhandled custom shader features.";
+                return false;
             }
 
             return true;
