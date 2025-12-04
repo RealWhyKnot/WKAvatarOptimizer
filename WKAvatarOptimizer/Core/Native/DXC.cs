@@ -2,6 +2,7 @@ using System;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.IO;
+using System.Reflection;
 
 namespace WKAvatarOptimizer.Core.Native
 {
@@ -89,8 +90,6 @@ namespace WKAvatarOptimizer.Core.Native
             uint codePage,
             out IDxcBlobEncoding ppResult
         );
-
-        // ... other methods omitted as they are not used yet
     }
 
     // IID_IDxcCompiler3: 228b4687-5a6a-4730-900c-9702b2203f54
@@ -114,8 +113,6 @@ namespace WKAvatarOptimizer.Core.Native
             ref Guid riid,
             out IntPtr ppResult // IDxcResult
         );
-        
-        // ... other methods omitted
     }
 
     // IID_IDxcResult: 58346cdd-ce7b-44f9-9509-a052fd6ed1b4
@@ -149,8 +146,6 @@ namespace WKAvatarOptimizer.Core.Native
 
         // 7: GetOutput
         void GetOutput();
-        
-        // ...
     }
 
     // CLSID_DxcCompiler: 73e22d93-e6ce-47f3-b5bf-f0664f39c1b0
@@ -173,26 +168,65 @@ namespace WKAvatarOptimizer.Core.Native
 
         static DxcNative()
         {
-            // Try to load dxcompiler.dll and dxil.dll explicitly
-            // dxil.dll is required for signing/validation in some DXC versions and should be loaded first or alongside.
+            ExtractAndLoadLibraries();
+        }
+
+        private static void ExtractAndLoadLibraries()
+        {
             try
             {
-                // Assume we are in the project root (Unity Editor default)
-                string dxilPath = Path.GetFullPath("WKAvatarOptimizer/Plugins/x86_64/dxil.dll");
+                // Define a unique temp path for the runtime
+                string tempFolder = Path.Combine(Path.GetTempPath(), "WKAvatarOptimizer_Runtime");
+                if (!Directory.Exists(tempFolder))
+                {
+                    Directory.CreateDirectory(tempFolder);
+                }
+
+                // Names of the embedded resources
+                // Namespace.Folder.Filename.dll
+                string[] resources = { "dxil.dll", "dxcompiler.dll" };
+                var assembly = Assembly.GetExecutingAssembly();
+                
+                foreach (var resName in resources)
+                {
+                    string resourcePath = $"WKAvatarOptimizer.Plugins.x86_64.{resName}";
+                    string outputPath = Path.Combine(tempFolder, resName);
+
+                    // Always overwrite to ensure we have the correct version
+                    // Or check hash? For now, overwrite is safer for development.
+                    using (Stream stream = assembly.GetManifestResourceStream(resourcePath))
+                    {
+                        if (stream != null)
+                        {
+                            using (FileStream fileStream = new FileStream(outputPath, FileMode.Create, FileAccess.Write))
+                            {
+                                stream.CopyTo(fileStream);
+                            }
+                        }
+                        else
+                        {
+                            // Fallback: Maybe it's not embedded?
+                            // UnityEngine.Debug.LogWarning($"[DxcNative] Could not find embedded resource: {resourcePath}");
+                        }
+                    }
+                }
+
+                // Explicitly load dxil.dll first, then dxcompiler.dll from the temp folder
+                string dxilPath = Path.Combine(tempFolder, "dxil.dll");
                 if (File.Exists(dxilPath) && GetModuleHandle("dxil.dll") == IntPtr.Zero)
                 {
                     LoadLibrary(dxilPath);
                 }
 
-                string dxcPath = Path.GetFullPath("WKAvatarOptimizer/Plugins/x86_64/dxcompiler.dll");
+                string dxcPath = Path.Combine(tempFolder, "dxcompiler.dll");
                 if (File.Exists(dxcPath) && GetModuleHandle("dxcompiler.dll") == IntPtr.Zero)
                 {
                     LoadLibrary(dxcPath);
                 }
             }
-            catch
+            catch (Exception)
             {
-                // Silent fail, rely on default search paths
+                // UnityEngine.Debug.LogError($"[DxcNative] Failed to extract/load native libraries: {ex.Message}");
             }
         }
 
@@ -235,7 +269,6 @@ namespace WKAvatarOptimizer.Core.Native
         {
             var sourceBytes = Encoding.UTF8.GetBytes(source);
             
-            // Allocate unmanaged memory for the source code
             IntPtr pSource = Marshal.AllocHGlobal(sourceBytes.Length);
             Marshal.Copy(sourceBytes, 0, pSource, sourceBytes.Length);
 

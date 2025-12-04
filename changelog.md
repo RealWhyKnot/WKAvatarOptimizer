@@ -1,5 +1,10 @@
 # Changelog
 
+## v2025.12.04.4
+
+### Changed
+- **Native Dependency Embedding:** `dxcompiler.dll` and `dxil.dll` are now embedded directly into `WKAvatarOptimizer.dll` as resources. They are automatically extracted to a temporary directory at runtime and loaded. This simplifies installation (drag-and-drop of a single DLL) and prevents path/loading issues in Unity.
+
 ## v2025.12.04.3
 
 ### Fixed

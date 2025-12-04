@@ -92,9 +92,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="Plugins\**\*.dll">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
+    <EmbeddedResource Include="Plugins\x86_64\dxcompiler.dll" />
+    <EmbeddedResource Include="Plugins\x86_64\dxil.dll" />
   </ItemGroup>
 
   <Target Name="SetBuildDate" BeforeTargets="CoreCompile">
