@@ -91,36 +91,3 @@ The optimizer runs a sequence of automated passes on your avatar during the buil
 1.  Add the `WK Avatar Optimizer` component to your avatar root.
 2.  (Optional) Add transforms to the "Exclude Transforms" list if you need specific objects to remain separate.
 3.  Build and Upload! The optimization happens automatically during the SDK build process.
-
----
-
-## Known Issues & Debugging
-
-### Broken Textures (Grayscale/Incorrect) in Play Mode
-**Status:** **Resolved (Pending Final Verification)**
-
-**Symptoms:**
-*   **Invisible Meshes:** FIXED.
-*   **"Metal" Artifacts / Wrong Texture:** FIXED.
-*   **Shader Compilation Errors:** FIXED.
-*   **Runtime Error:** FIXED.
-
-**Diagnosis & Root Cause Identification:**
-1.  **Invisible Meshes:** `CGPROGRAM` detection failure due to whitespace.
-2.  **Texture Array Indexing:** Missing or constant array indices causing all meshes to sample texture index 0.
-3.  **Undeclared `WKVRCOptimizerArrayshouldSample_...`:** Missing array declaration due to `ArrayPropertyNeedsIndexing` returning false for identical values.
-4.  **`l-value specifies const object`:**
-    *   **Root Cause:** The optimizer was defining Poiyomi's internal variables (like `arrayIndex_MainTex`, `m_mainCategory`) as `const` lookup macros because they varied across meshes. However, Poiyomi's code writes to these variables, which is illegal for `const` macros.
-    *   **Fix:** The logic was updated to detect "native" shader properties (those not starting with `_WKVRCOpt_`). For these properties, the optimizer now declares them as mutable `static` variables instead of `const` macros.
-5.  **Undeclared `arrayIndex_...`:**
-    *   **Root Cause:** After renaming internal variables to `_WKVRCOpt_arrayIndex_...` to avoid collisions, the original shader code referring to `arrayIndex_...` became undeclared.
-    *   **Fix:** A new method `InjectLegacyPropertyAssignments` was added. It injects code at the start of the vertex and fragment shaders to assign the correct value (looked up via `_WKVRCOpt_arrayIndex_...`) to the legacy `arrayIndex_...` variables. This ensures legacy code receives the correct, mesh-specific values while allowing it to modify the variables locally if needed.
-
-**Latest Fixes Implemented:**
-*   **`ShaderAnalyzer.cs` (`InjectPropertyArrays`):** Modified to declare native array properties as `static` variables instead of macros.
-*   **`ShaderAnalyzer.cs` (`InjectLegacyPropertyAssignments`):** Added method to update legacy variables from optimizer variables at runtime.
-*   **`ShaderAnalyzer.cs` (`InjectArrayPropertyInitialization`):** Fixed `Sequence contains no elements` crash.
-*   **`MaterialOptimizer.cs`:** Renamed internal properties to `_WKVRCOpt_arrayIndex_` and ensured they are always retained.
-
-**Next Steps:**
-*   Build and test. The avatar should now be fully visible with correct textures and no shader errors.

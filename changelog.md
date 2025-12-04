@@ -1,5 +1,14 @@
 # Changelog
 
+## v2025.12.04.1
+
+### Fixed
+- Compilation errors in `SPIRVReflect.cs` due to visibility issues with nested types.
+- Compilation errors in `ShaderAnalyzer.cs`, `MaterialOptimizer.cs`, `AvatarOptimizer.cs`, and editor scripts by fully removing references to the legacy `ParsedShader` class and updating calls to use `ShaderIR`.
+- Fixed logic in `MainEditor.cs` to correctly inspect `ShaderIR` for debug information.
+- Resolved visibility issue for `PropertyMapper.CopyMaterialPropertiesToIR`.
+- Removed duplicate method in `ComponentOptimizer.cs`.
+
 ## v2025.12.04.0
 
 ### Added

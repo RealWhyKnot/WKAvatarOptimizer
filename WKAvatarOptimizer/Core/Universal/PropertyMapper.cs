@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
+using UnityEngine; // Added for Material
 using WKAvatarOptimizer.Core.Native; // To use SpvReflectNative.SpvReflectDescriptorBinding
 
 namespace WKAvatarOptimizer.Core.Universal
@@ -147,15 +149,15 @@ namespace WKAvatarOptimizer.Core.Universal
         }
 
         // Helper to populate ShaderIR based on reflected bindings and current material properties
-        public static void MapBindingsToShaderIR(ShaderIR ir, SpvReflectNative.SpvReflectDescriptorBinding[] bindings, Material sourceMaterial)
+        public static void MapBindingsToShaderIR(ShaderIR ir, SpvReflectDescriptorBinding[] bindings, Material sourceMaterial)
         {
             foreach (var binding in bindings)
             {
                 string name = Marshal.PtrToStringAnsi(binding.name);
                 if (string.IsNullOrEmpty(name)) continue;
 
-                if (binding.descriptor_type == SpvReflectNative.SpvReflectDescriptorType.SPV_REFLECT_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER ||
-                    binding.descriptor_type == SpvReflectNative.SpvReflectDescriptorType.SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLED_IMAGE)
+                if (binding.descriptor_type == SpvReflectDescriptorType.SPV_REFLECT_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER ||
+                    binding.descriptor_type == SpvReflectDescriptorType.SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLED_IMAGE)
                 {
                     TextureRole role = MapTextureToRole(name);
                     Texture2D texture = null;
@@ -205,7 +207,7 @@ namespace WKAvatarOptimizer.Core.Universal
             CopyMaterialPropertiesToIR(ir, sourceMaterial);
         }
 
-        private static void CopyMaterialPropertiesToIR(ShaderIR ir, Material sourceMaterial)
+        public static void CopyMaterialPropertiesToIR(ShaderIR ir, Material sourceMaterial)
         {
             // Textures (already handled by reflection and mapping, but ensure scale/offset)
             if (sourceMaterial.HasProperty("_MainTex_ST"))

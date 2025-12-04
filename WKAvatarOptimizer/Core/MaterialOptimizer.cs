@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
+using WKAvatarOptimizer.Core.Universal; // Added
 using WKAvatarOptimizer.Data;
 using WKAvatarOptimizer.Extensions;
 using WKAvatarOptimizer.Core.Util;
@@ -375,190 +376,17 @@ namespace WKAvatarOptimizer.Core
 
         public void SaveOptimizedMaterials()
         {
-            Profiler.StartSection("AssetDatabase.ImportAsset()");
-            try
+            // Assign deferred texture arrays
+            foreach (var entry in context.texArrayPropertiesToSet)
             {
-                AssetDatabase.StartAssetEditing();
-                foreach(var importPath in context.optimizedMaterialImportPaths)
+                var mat = entry.Key;
+                foreach (var (propName, texArray) in entry.Value)
                 {
-                    AssetDatabase.ImportAsset(importPath);
-                }
-            }
-            finally
-            {
-                AssetDatabase.StopAssetEditing();
-            }
-            Profiler.EndSection();
-
-            int i = 0;
-            foreach (var entry in context.optimizedMaterials.Values)
-            {
-                var mat = entry.target;
-                var sources = entry.sources;
-                var source = sources[0];
-                var optimizedShader = entry.optimizerResult;
-                optimizer.DisplayProgressBar($"Loading optimized shader {mat.name} {0.7f + 0.2f * (i / (float)context.optimizedMaterials.Count)}");
-                Profiler.StartSection("AssetDatabase.LoadAssetAtPath<Shader>()");
-                string shaderPath = $"{context.trashBinPath}{optimizedShader.name}.shader";
-                context.Log($"[MaterialOptimizer] Loading shader for {mat.name} from: {shaderPath}");
-                var shader = AssetDatabase.LoadAssetAtPath<Shader>(shaderPath);
-                Profiler.StartNextSection("mat.shader = shader");
-                mat.shader = shader;
-                mat.renderQueue = source.renderQueue;
-                mat.enableInstancing = source.enableInstancing;
-                Profiler.StartNextSection("CopyMaterialProperties");
-                for (int j = 0; j < source.shader.passCount; j++) {
-                    var lightModeValue = source.shader.FindPassTagValue(j, new ShaderTagId("LightMode"));
-                    if (!string.IsNullOrEmpty(lightModeValue.name)) {
-                        if (!source.GetShaderPassEnabled(lightModeValue.name)) {
-                            mat.SetShaderPassEnabled(lightModeValue.name, false);
-                        }
-                    }
-                }
-                var texArrayProperties = new HashSet<string>();
-                if (context.texArrayPropertiesToSet.TryGetValue(mat, out var texArrays))
-                {
-                    foreach (var texArray in texArrays)
-                    {
-                        string texArrayName = texArray.name;
-                        if (texArrayName == "_MainTex")
-                        {
-                            texArrayName = "_MainTexButNotQuiteSoThatUnityDoesntCry";
-                        }
-                        context.Log($"[MaterialOptimizer] Assigning TextureArray '{texArray.array.name}' to material '{mat.name}' property '{texArrayName}'");
-                        mat.SetTexture(texArrayName, texArray.array);
-                        mat.SetTextureOffset(texArrayName, source.GetTextureOffset(texArray.name));
-                        mat.SetTextureScale(texArrayName, source.GetTextureScale(texArray.name));
-                        texArrayProperties.Add(texArrayName);
-                    }
-                }
-                foreach (var prop in optimizedShader.tex2DProperties)
-                {
-                    if (!source.HasProperty(prop) || texArrayProperties.Contains(prop))
-                        continue;
-                    var tex = sources.Select(m => m.HasProperty(prop) ? m.GetTexture(prop) : null).FirstOrDefault(t => t != null);
-                    context.Log($"[MaterialOptimizer] Setting standard texture {prop} on {mat.name} to {tex?.name}");
-                    mat.SetTexture(prop, tex);
-                    if (source.HasProperty(prop))
-                    {
-                        mat.SetTextureOffset(prop, source.GetTextureOffset(prop));
-                        mat.SetTextureScale(prop, source.GetTextureScale(prop));
-                    }
-                }
-                foreach (var prop in optimizedShader.tex3DCubeProperties)
-                {
-                    if (!source.HasProperty(prop))
-                        continue;
-                    var tex = sources.Select(m => m.HasProperty(prop) ? m.GetTexture(prop) : null).FirstOrDefault(t => t != null);
-                    mat.SetTexture(prop, tex);
-                }
-                foreach (var prop in optimizedShader.floatProperties)
-                {
-                    if (!source.HasProperty(prop))
-                        continue;
-                    float val = source.GetFloat(prop);
-                    // context.Log($"[MaterialOptimizer] Setting float {prop} on {mat.name} to {val}"); // Uncomment for spam
-                    mat.SetFloat(prop, val);
-                }
-                foreach (var prop in optimizedShader.colorProperties)
-                {
-                    if (!source.HasProperty(prop))
-                        continue;
-                    Color col = source.GetColor(prop);
-                    if (prop == "_Color")
-                    {
-                        context.Log($"[MaterialOptimizer] Setting color {prop} on {mat.name} to {col}");
-                    }
-                    mat.SetColor(prop, col);
-                }
-                foreach (var prop in optimizedShader.integerProperties)
-                {
-                    if (!source.HasProperty(prop))
-                        continue;
-                    mat.SetInteger(prop, source.GetInt(prop));
-                }
-                var vrcFallback = source.GetTag("VRCFallback", false, "not_set");
-                if (vrcFallback != "not_set")
-                {
-                    mat.SetOverrideTag("VRCFallback", vrcFallback);
-                }
-                
-                mat.SetFloat("WKVRCOptimizer_Zero", 0.0f);
-                
-                Profiler.EndSection();
-            }
-
-            var skinnedMeshRenderers = gameObject.GetComponentsInChildren<SkinnedMeshRenderer>(true);
-            foreach (var meshRenderer in skinnedMeshRenderers)
-            {
-                var mesh = meshRenderer.sharedMesh;
-                if (mesh == null)
-                    continue;
-
-                var props = new MaterialPropertyBlock();
-                meshRenderer.GetPropertyBlock(props);
-                int meshCount = props.GetInt("WKVRCOptimizer_CombinedMeshCount");
-
-                if (context.fusedAnimatedMaterialProperties.TryGetValue(meshRenderer.transform.GetPathToRoot(gameObject.transform), out var animatedProperties))
-                {
-                    foreach (var mat in meshRenderer.sharedMaterials)
-                    {
-                        if (mat == null)
-                            continue;
-                        foreach (var animPropName in animatedProperties)
-                        {
-                            var propName = animPropName;
-                            bool isVector = propName.EndsWith(".x") || propName.EndsWith(".r");
-                            if (isVector) {
-                                propName = propName.Substring(0, propName.Length - 2);
-                            } else if (propName.Length > 2 && propName[propName.Length - 2] == '.') {
-                                continue;
-                            } else if (animatedProperties.Contains($"{propName}.x") || animatedProperties.Contains($"{propName}.r")) {
-                                isVector = true;
-                            }
-                            for (int mID = 0; mID < meshCount; mID++) {
-                                var propArrayName = $"WKVRCOptimizer{propName}_ArrayIndex{mID}";
-                                if (!mat.HasProperty(propArrayName))
-                                    continue;
-                                var signal = optimizer.fxLayerOptimizer.DoesFXLayerUseWriteDefaults() ? 0.0f : float.NaN;
-                                if (isVector) {
-                                    mat.SetVector(propArrayName, new Vector4(signal, signal, signal, signal));
-                                } else {
-                                    mat.SetFloat(propArrayName, signal);
-                                }
-                            }
-                        }
-                        if (optimizer.fxLayerOptimizer.DoesFXLayerUseWriteDefaults() && context.animatedMaterialPropertyDefaultValues.TryGetValue(meshRenderer.transform.GetPathToRoot(gameObject.transform), out var defaultValues))
-                        {
-                            foreach (var defaultProp in defaultValues)
-                            {
-                                if (mat.HasFloat(defaultProp.Key))
-                                {
-                                    mat.SetFloat(defaultProp.Key, defaultProp.Value.x);
-                                }
-                                else if (mat.HasVector(defaultProp.Key))
-                                {
-                                    mat.SetVector(defaultProp.Key, defaultProp.Value);
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if (meshCount > 1)
-                {
-                    foreach (var mat in meshRenderer.sharedMaterials)
-                    {
-                        if (mat == null)
-                            continue;
-                        for (int mID = 0; mID < meshCount; mID++) {
-                            var propName = $"_IsActiveMesh{mID}";
-                            mat.SetFloat(propName, props.GetFloat(propName));
-                        }
-                    }
+                    mat.SetTexture(propName, texArray);
                 }
             }
 
+            // Save assets
             foreach (var mat in context.optimizedMaterials.Select(o => o.Value.target))
             {
                 AssetManager.CreateUniqueAsset(context, mat, mat.name + ".mat");
@@ -574,97 +402,7 @@ namespace WKAvatarOptimizer.Core
         {
             context.textureArrayLists.Clear();
             context.textureArrays.Clear();
-
-            var skinnedMeshRenderers = gameObject.GetComponentsInChildren<SkinnedMeshRenderer>(true);
-            foreach (var meshRenderer in skinnedMeshRenderers)
-            {
-                var mesh = meshRenderer.sharedMesh;
-
-                if (mesh == null)
-                    continue;
-
-                var matched = FindAllMergeAbleMaterials(new [] { meshRenderer });
-                
-                var matchedMaterials = matched.Select(list => list.Select(slot => slot.material).ToList()).ToList();
-                var uniqueMatchedMaterials = matchedMaterials.Select(mm => mm.Distinct().ToList()).ToList();
-
-                SearchForTextureArrayCreation(uniqueMatchedMaterials);
-            }
-
-            foreach (var textureList in context.textureArrayLists)
-            {
-                context.textureArrays.Add(CombineTextures(textureList));
-            }
-        }
-
-        private bool IsCrunched(TextureFormat format)
-        {
-            return format == TextureFormat.DXT1Crunched ||
-                   format == TextureFormat.DXT5Crunched ||
-                   format == TextureFormat.ETC_RGB4Crunched ||
-                   format == TextureFormat.ETC2_RGBA8Crunched;
-        }
-
-        private void SearchForTextureArrayCreation(List<List<Material>> sources)
-        {
-            foreach (var source in sources)
-            {
-                var parsedShader = ShaderAnalyzer.Parse(source[0]?.shader, source[0]);
-                if (parsedShader == null || !parsedShader.parsedCorrectly)
-                    continue;
-                var propertyTextureLists = new Dictionary<string, List<Texture2D>>();
-                foreach (var mat in source)
-                {
-                    foreach (var prop in parsedShader.properties)
-                    {
-                        if (!mat.HasProperty(prop.name))
-                            continue;
-                        if (prop.type != ParsedShader.Property.Type.Texture2D)
-                            continue;
-                        if (!propertyTextureLists.TryGetValue(prop.name, out var textureArray))
-                        {
-                            textureArray = new List<Texture2D>();
-                            propertyTextureLists[prop.name] = textureArray;
-                        }
-                        var tex = mat.GetTexture(prop.name);
-                        var tex2D = tex as Texture2D;
-                        int index = textureArray.IndexOf(tex2D);
-                        if (index == -1 && tex2D != null)
-                        {
-                            textureArray.Add(tex2D);
-                        }
-                    }
-                }
-                foreach (var texArray in propertyTextureLists.Values.Where(a => a.Count > 1))
-                {
-                    if (IsCrunched(texArray[0].format))
-                    {
-                        context.Log($"[TextureArray] Skipping array creation for {texArray[0].name}: Crunched format {texArray[0].format} is not supported. Please disable Crunch Compression.");
-                        continue;
-                    }
-
-                    List<Texture2D> list = null;
-                    foreach (var subList in context.textureArrayLists)
-                    {
-                        if (texArray.All(tex => CanCombineTextures(subList[0], tex)))
-                        {
-                            list = subList;
-                            break;
-                        }
-                    }
-                    if (list == null)
-                    {
-                        list = new List<Texture2D>();
-                        context.textureArrayLists.Add(list);
-                        context.Log($"[TextureArray] Created new array for {texArray[0].name} ({texArray[0].width}x{texArray[0].height} {texArray[0].format})");
-                    }
-                    else
-                    {
-                        context.Log($"[TextureArray] Merging {texArray[0].name} into existing array ({list.Count} existing textures)");
-                    }
-                    list.AddRange(texArray.Except(list));
-                }
-            }
+            // Texture array creation is now handled dynamically in CreateOptimizedMaterials
         }
 
         private Texture2DArray CombineTextures(List<Texture2D> textures)

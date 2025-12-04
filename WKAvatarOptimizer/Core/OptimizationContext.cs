@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
+using WKAvatarOptimizer.Core.Universal; // Added
 
 namespace WKAvatarOptimizer.Core
 {
@@ -19,7 +20,7 @@ namespace WKAvatarOptimizer.Core
         public Dictionary<AnimationPath, AnimationPath> newAnimationPaths = new Dictionary<AnimationPath, AnimationPath>();
         public HashSet<string> pathsToDeleteGameObjectTogglesOn = new HashSet<string>();
         
-        public Dictionary<Material, (Material target, List<Material> sources, ShaderOptimizer.OptimizedShader optimizerResult)> optimizedMaterials = new Dictionary<Material, (Material, List<Material>, ShaderOptimizer.OptimizedShader)>();
+        public Dictionary<Material, (Material target, List<Material> sources, ShaderIR optimizerResult)> optimizedMaterials = new Dictionary<Material, (Material, List<Material>, ShaderIR)>();
         public List<string> optimizedMaterialImportPaths = new List<string>();
         
         public Dictionary<string, List<List<string>>> oldPathToMergedPaths = new Dictionary<string, List<List<string>>>();

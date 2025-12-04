@@ -146,7 +146,7 @@ public partial class AvatarOptimizer : MonoBehaviour, VRC.SDKBase.IEditorOnly
             
             DisplayProgressBar("Parsing Shaders", 0.3f);
             Profiler.StartNextSection("ParseAndCacheAllShaders()");
-            ShaderAnalyzer.ParseAndCacheAllShaders(materialOptimizer.FindAllUsedMaterials().Select(m => m.shader), true,
+            ShaderAnalyzer.ParseAndCacheAllShaders(materialOptimizer.FindAllUsedMaterials().Select(m => (m.shader, m)), true,
                 (done, total) => DisplayProgressBar($"Parsing Shaders ({done}/{total})", 0.3f + 0.15f * done / total));
             
             context.physBonesToDisable = FindAllPhysBonesToDisable();
@@ -245,7 +245,7 @@ public partial class AvatarOptimizer : MonoBehaviour, VRC.SDKBase.IEditorOnly
 
     public static bool IsMaterialReadyToCombineWithOtherMeshes(Material material)
     {
-        bool result = material != null && ShaderAnalyzer.Parse(material.shader).CanMerge();
+        bool result = material != null && ShaderAnalyzer.Parse(material.shader, material) != null;
         return result;
     }
 

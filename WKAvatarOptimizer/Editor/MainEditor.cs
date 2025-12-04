@@ -23,6 +23,22 @@ namespace WKAvatarOptimizer.Editor
         private static long longestTimeUsed = -2;
         private const int AutoRefreshPreviewTimeout = 500;
 
+        private IEnumerable<Texture2D> GetTexturesFromIR(WKAvatarOptimizer.Core.Universal.ShaderIR ir)
+        {
+            if (ir == null) yield break;
+            if (ir.baseColor.texture != null) yield return ir.baseColor.texture;
+            if (ir.normalMap.texture != null) yield return ir.normalMap.texture;
+            if (ir.metallicGlossMap.texture != null) yield return ir.metallicGlossMap.texture;
+            if (ir.shadeMap.texture != null) yield return ir.shadeMap.texture;
+            if (ir.rampTexture.texture != null) yield return ir.rampTexture.texture;
+            if (ir.matcapTexture.texture != null) yield return ir.matcapTexture.texture;
+            if (ir.matcapTexture2.texture != null) yield return ir.matcapTexture2.texture;
+            if (ir.outlineMask.texture != null) yield return ir.outlineMask.texture;
+            if (ir.emissionMap.texture != null) yield return ir.emissionMap.texture;
+            if (ir.dissolveMask.texture != null) yield return ir.dissolveMask.texture;
+            if (ir.detailMap.texture != null) yield return ir.detailMap.texture;
+        }
+
         public override void OnInspectorGUI()
         {
             optimizer = (AvatarOptimizer)target;
@@ -248,53 +264,17 @@ namespace WKAvatarOptimizer.Editor
                     Profiler.StartSection("Unparsable Materials");
                     var list = optimizer.GetUsedComponentsInChildren<Renderer>()
                         .SelectMany(r => r.sharedMaterials).Distinct()
-                        .Select(mat => (mat, ShaderAnalyzer.Parse(mat?.shader)))
-                        .Where(t => !(t.Item2 != null && t.Item2.parsedCorrectly))
+                        .Select(mat => (mat, ShaderAnalyzer.Parse(mat?.shader, mat)))
+                        .Where(t => t.Item2 == null)
                         .Select(t => t.mat).ToArray();
-                    foreach (var shader in list.Select(mat => mat?.shader).Distinct())
+                    if (list.Length > 0)
                     {
-                        var parsed = ShaderAnalyzer.Parse(shader);
-                        EditorGUILayout.HelpBox((shader?.name ?? "Missing shader") + "\n" +
-                            (parsed?.errorMessage ?? "Missing shader can\'t be parsed."),
-                            MessageType.Info);
-                        var materialsWithThisShader = list.Where(mat => mat?.shader == shader).ToArray();
-                        DrawDebugList(materialsWithThisShader);
+                        EditorGUILayout.HelpBox($"Found {list.Length} materials with unparsable shaders.", MessageType.Info);
+                        DrawDebugList(list);
                     }
                     Profiler.EndSection();
                 }
-                if (Foldout("Unmergable Materials", ref optimizer.DebugShowUnmergableMaterials))
-                {
-                    Profiler.StartSection("Unmergable Materials");
-                    var list = optimizer.GetUsedComponentsInChildren<Renderer>()
-                        .SelectMany(r => r.sharedMaterials).Distinct()
-                        .Select(mat => (mat, ShaderAnalyzer.Parse(mat?.shader)))
-                        .Where(t => (t.Item2 != null && t.Item2.parsedCorrectly && !t.Item2.CanMerge()))
-                        .Select(t => t.mat).ToArray();
-                    foreach (var shader in list.Select(mat => mat.shader).Distinct())
-                    {
-                        var parsed = ShaderAnalyzer.Parse(shader);
-                        EditorGUILayout.HelpBox(shader.name + "\n" + parsed.CantMergeReason(), MessageType.Info);
-                        var materialsWithThisShader = list.Where(mat => mat.shader == shader).ToArray();
-                        DrawDebugList(materialsWithThisShader);
-                    }
-                    Profiler.EndSection();
-                }
-                if (Foldout("Unmergable Texture Materials", ref optimizer.DebugShowUnmergableTextureMaterials))
-                {
-                    Profiler.StartSection("Unmergable Texture Materials");
-                    var list = optimizer.GetUsedComponentsInChildren<Renderer>()
-                        .SelectMany(r => r.sharedMaterials).Distinct()
-                        .Select(mat => (mat, ShaderAnalyzer.Parse(mat?.shader)))
-                        .Where(t => (t.Item2 != null && t.Item2.CanMerge() && !t.Item2.CanMergeTextures()))
-                        .Select(t => t.mat).ToArray();
-                    foreach (var shader in list.Select(mat => mat.shader).Distinct())
-                    {
-                        var parsed = ShaderAnalyzer.Parse(shader);
-                        EditorGUILayout.HelpBox(shader.name + "\n" + parsed.CantMergeTexturesReason(), MessageType.Info);
-                        var materialsWithThisShader = list.Where(mat => mat.shader == shader).ToArray();
-                        DrawDebugList(materialsWithThisShader);
-                    }
-                }
+                
                 if (Foldout("Crunched Textures", ref optimizer.DebugShowCrunchedTextures))
                 {
                     Profiler.StartSection("Crunched Textures");
@@ -707,7 +687,7 @@ namespace WKAvatarOptimizer.Editor
             lastSelected = optimizer;
             ClearUICaches();
             
-            ShaderAnalyzer.ParseAndCacheAllShaders(optimizer.FindAllUsedMaterials().Select(m => m.shader), false);
+            ShaderAnalyzer.ParseAndCacheAllShaders(optimizer.FindAllUsedMaterials().Select(m => (m.shader, m)), false);
         }
 
         private (int count, float maxValue, float medianValue)[] GetMeshBoneWeightStats(Mesh mesh)
@@ -879,16 +859,13 @@ namespace WKAvatarOptimizer.Editor
                     var tuple = optimizer.GetUsedComponentsInChildren<Renderer>()
                         .Where(r => !exclusions.Contains(r.transform))
                         .SelectMany(r => r.sharedMaterials).Distinct()
-                        .Select(mat => (mat, ShaderAnalyzer.Parse(mat?.shader)))
-                        .Where(t => t.Item2?.parsedCorrectly ?? false).ToArray();
+                        .Select(mat => (mat, ShaderAnalyzer.Parse(mat?.shader, mat)))
+                        .Where(t => t.Item2 != null).ToArray();
                     var textures = new HashSet<Texture2D>();
-                    foreach (var (mat, parsed) in tuple)
+                    foreach (var (mat, ir) in tuple)
                     {
-                        if (!parsed.CanMergeTextures())
-                            continue;
-                        foreach (var prop in parsed.texture2DProperties)
+                        foreach (var tex in GetTexturesFromIR(ir))
                         {
-                            var tex = mat.GetTexture(prop.name) as Texture2D;
                             if (tex != null && (tex.format == TextureFormat.DXT1Crunched || tex.format == TextureFormat.DXT5Crunched))
                                 textures.Add(tex);
                         }
@@ -915,19 +892,17 @@ namespace WKAvatarOptimizer.Editor
                         .Distinct();
                     foreach (var material in materials)
                     {
-                        var parsed = ShaderAnalyzer.Parse(material.shader);
-                        if (parsed == null)
+                        var ir = ShaderAnalyzer.Parse(material.shader, material);
+                        if (ir == null || ir.normalMap.texture == null)
                             continue;
-                        foreach (var prop in parsed.texture2DProperties)
+                        
+                        var tex = ir.normalMap.texture;
+                        if (tex != null && tex.format != TextureFormat.BC5)
                         {
-                            var tex = material.GetTexture(prop.name) as Texture2D;
-                            if (tex != null && tex.format != TextureFormat.BC5)
+                            var assetImporter = AssetImporter.GetAtPath(AssetDatabase.GetAssetPath(tex)) as TextureImporter;
+                            if (assetImporter != null && assetImporter.textureType == TextureImporterType.NormalMap)
                             {
-                                var assetImporter = AssetImporter.GetAtPath(AssetDatabase.GetAssetPath(tex)) as TextureImporter;
-                                if (assetImporter != null && assetImporter.textureType == TextureImporterType.NormalMap)
-                                {
-                                    textures.Add(tex);
-                                }
+                                textures.Add(tex);
                             }
                         }
                     }

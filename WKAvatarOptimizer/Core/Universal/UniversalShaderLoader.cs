@@ -140,7 +140,7 @@ namespace WKAvatarOptimizer.Core.Universal
         }
 
         // Renamed from PopulateShaderIR to better reflect its purpose and use PropertyMapper
-        private void PopulateShaderIRFromReflectionAndMaterial(ShaderIR ir, SpvReflectNative.SpvReflectDescriptorBinding[] bindings, Shader unityShader, Material sourceMaterial)
+        private void PopulateShaderIRFromReflectionAndMaterial(ShaderIR ir, SpvReflectDescriptorBinding[] bindings, Shader unityShader, Material sourceMaterial)
         {
             // Use PropertyMapper to map reflected bindings and material properties to ShaderIR
             PropertyMapper.MapBindingsToShaderIR(ir, bindings, sourceMaterial);
