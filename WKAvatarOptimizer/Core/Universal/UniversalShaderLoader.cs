@@ -51,7 +51,15 @@ namespace WKAvatarOptimizer.Core.Universal
             byte[] spirvBytecode = null;
             try
             {
-                spirvBytecode = _dxcCompiler.CompileToSpirV(hlslSource, entryPoint, targetProfile);
+                DxcConfiguration config = new DxcConfiguration 
+                { 
+                    EntryPoint = entryPoint, 
+                    TargetProfile = targetProfile,
+                    OutputSpirV = true,
+                    VulkanLayout = true,
+                    Optimization = false
+                };
+                spirvBytecode = _dxcCompiler.CompileToSpirV(hlslSource, config);
             }
             catch (Exception ex)
             {

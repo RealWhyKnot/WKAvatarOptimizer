@@ -1,5 +1,13 @@
 # Changelog
 
+## v2025.12.04.6
+
+### Fixed
+- **Critical Crash Fix:** Corrected the `IDxcUtils` interface definition in `DXC.cs`. Switched from `CreateBlobFromPinned` to `CreateBlob` (Slot 6) to avoid potential memory aliasing issues and ensure stability. Verified VTable alignment for all `IDxcUtils` methods.
+- **Native Library Loading:** Enhanced `DxcNative` to first check standard plugin directories (Assets/Packages/Plugins) before falling back to extracting embedded resources to a temp folder. This supports both development environments and distributed builds.
+- **SPIR-V Reflection Stability:** Updated `SPIRVReflector` to pin the SPIR-V bytecode array in memory for the lifetime of the reflection module, preventing potential Garbage Collection issues.
+- **DXC Configuration:** Introduced `DxcConfiguration` class to encapsulate compiler options (EntryPoint, TargetProfile, Optimization level) and updated `UniversalShaderLoader` to use it.
+
 ## v2025.12.04.5
 
 ### Fixed

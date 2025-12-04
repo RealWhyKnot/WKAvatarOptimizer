@@ -4,7 +4,7 @@ using System.Collections.Generic;
 
 namespace WKAvatarOptimizer.Core.Native
 {
-    // Enums and Structs from spirv_reflect.h, moved out of SPIRVReflectNative class
+    #region Enums
     public enum SpvReflectResult
     {
         SPV_REFLECT_RESULT_SUCCESS = 0,
@@ -17,7 +17,7 @@ namespace WKAvatarOptimizer.Core.Native
         SPV_REFLECT_RESULT_ERROR_INPUT_SPIRV = 7,
         SPV_REFLECT_RESULT_ERROR_COUNT_MISMATCH = 8,
         SPV_REFLECT_RESULT_ERROR_ELEMENT_NOT_FOUND = 9,
-        SPV_REFLECT_RESULT_ERROR_MAX_VALUE = 2147483647 // INT_MAX
+        SPV_REFLECT_RESULT_ERROR_MAX_VALUE = 2147483647
     }
 
     public enum SpvReflectResourceType
@@ -64,43 +64,38 @@ namespace WKAvatarOptimizer.Core.Native
         SpvExecutionModelMeshEXT = 14,
         SpvExecutionModelMax = 0x7FFFFFFF
     }
+    #endregion
 
-    // Minimal SpvReflectModule struct
+    #region Structs
     [StructLayout(LayoutKind.Sequential)]
     public struct SpvReflectModule
     {
         public SpvReflectResult result;
         public uint spirv_word_count;
-        public IntPtr spirv_code; // Pointer to the SPIR-V bytecode
+        public IntPtr spirv_code; 
         public uint spirv_version;
         public uint generator_id;
-        public IntPtr entry_point_name; // char*
+        public IntPtr entry_point_name;
         public SpvExecutionModel entry_point_model;
     }
     
-    // Minimal SpvReflectDescriptorBinding struct
     [StructLayout(LayoutKind.Sequential)]
     public struct SpvReflectDescriptorBinding
     {
         public uint spirv_id;
         public uint binding;
         public uint input_variable_id;
-        public uint count; // Array count. 0 or 1 if not an array. >1 if array.
-        
+        public uint count;
         public SpvReflectDescriptorType descriptor_type;
         public SpvReflectResourceType resource_type;
-        
-        public IntPtr name; // char*
+        public IntPtr name;
     }
-    
+    #endregion
+
     public static class SPIRVReflectNative
     {
-        // On Windows, the DLL would be named `spirv_reflect.dll`.
-        // We will build a small C++ wrapper that exposes these functions
-        // and link it against spirv_reflect.c/h.
         private const string SpirvReflectLibrary = "spirv_reflect.dll"; 
 
-        // spvReflectCreateShaderModule
         [DllImport(SpirvReflectLibrary, CallingConvention = CallingConvention.Cdecl)]
         public static extern SpvReflectResult spvReflectCreateShaderModule(
             UIntPtr size,
@@ -108,50 +103,37 @@ namespace WKAvatarOptimizer.Core.Native
             ref SpvReflectModule p_module
         );
 
-        // spvReflectDestroyShaderModule
         [DllImport(SpirvReflectLibrary, CallingConvention = CallingConvention.Cdecl)]
         public static extern void spvReflectDestroyShaderModule(
             ref SpvReflectModule p_module
         );
 
-        // spvReflectEnumerateDescriptorBindings
-        // First call to get count, second call to get pointers to bindings
         [DllImport(SpirvReflectLibrary, CallingConvention = CallingConvention.Cdecl)]
         public static extern SpvReflectResult spvReflectEnumerateDescriptorBindings(
             ref SpvReflectModule p_module,
             out uint p_count,
-            [Out] IntPtr[] pp_bindings // Array of pointers to SpvReflectDescriptorBinding structs
+            [Out] IntPtr[] pp_bindings
         );
 
-        // Overload for getting count only (pass null for pp_bindings)
         [DllImport(SpirvReflectLibrary, CallingConvention = CallingConvention.Cdecl, EntryPoint = "spvReflectEnumerateDescriptorBindings")]
         public static extern SpvReflectResult spvReflectEnumerateDescriptorBindings_Count(
             ref SpvReflectModule p_module,
             out uint p_count,
-            IntPtr pp_bindings // Should be IntPtr.Zero
+            IntPtr pp_bindings
         );
-        
-        // spvReflectGetEntryPoint
-        [DllImport(SpirvReflectLibrary, CallingConvention = CallingConvention.Cdecl)]
-        public static extern IntPtr spvReflectGetEntryPoint(
-            ref SpvReflectModule p_module,
-            string entryPointName
-        );
-
-
     }
     
-    // Minimal wrapper for SPIRV-Reflect operations
     public class SPIRVReflector : IDisposable
     {
         private SpvReflectModule _module;
+        private GCHandle _pinnedCode;
         private bool _disposed = false;
 
         public SPIRVReflector(byte[] spirvBytecode)
         {
-            // Pin the bytecode array to prevent GC from moving it
-            GCHandle pinnedCode = GCHandle.Alloc(spirvBytecode, GCHandleType.Pinned);
-            IntPtr pCode = pinnedCode.AddrOfPinnedObject();
+            // Pin the bytecode array and keep it pinned for the lifetime of the reflector
+            _pinnedCode = GCHandle.Alloc(spirvBytecode, GCHandleType.Pinned);
+            IntPtr pCode = _pinnedCode.AddrOfPinnedObject();
 
             SpvReflectResult result = SPIRVReflectNative.spvReflectCreateShaderModule(
                 (UIntPtr)spirvBytecode.Length,
@@ -159,56 +141,32 @@ namespace WKAvatarOptimizer.Core.Native
                 ref _module
             );
 
-            // Release the pinned handle immediately after use
-            pinnedCode.Free();
-
             if (result != SpvReflectResult.SPV_REFLECT_RESULT_SUCCESS)
             {
+                // If creation failed, free immediately
+                if (_pinnedCode.IsAllocated) _pinnedCode.Free();
                 throw new Exception($"Failed to create SPIR-V Reflect module: {result}");
             }
         }
 
-        public string GetEntryPointName()
-        {
-            if (_module.entry_point_name != IntPtr.Zero)
-            {
-                return Marshal.PtrToStringAnsi(_module.entry_point_name);
-            }
-            return "unknown";
-        }
-
-        public SpvExecutionModel GetEntryPointModel()
-        {
-            return _module.entry_point_model;
-        }
-
         public SpvReflectDescriptorBinding[] GetDescriptorBindings()
         {
+            if (_disposed) throw new ObjectDisposedException(nameof(SPIRVReflector));
+
             uint count;
-            // First call to get the count of bindings
             SpvReflectResult result = SPIRVReflectNative.spvReflectEnumerateDescriptorBindings_Count(
                 ref _module, out count, IntPtr.Zero
             );
-            if (result != SpvReflectResult.SPV_REFLECT_RESULT_SUCCESS)
-            {
-                throw new Exception($"Failed to get descriptor bindings count: {result}");
-            }
+            if (result != SpvReflectResult.SPV_REFLECT_RESULT_SUCCESS) throw new Exception($"Failed to get bindings count: {result}");
 
             if (count == 0) return new SpvReflectDescriptorBinding[0];
 
-            // Allocate an array of IntPtrs to hold the pointers to the bindings
             IntPtr[] nativeBindingsPtrs = new IntPtr[count];
-            
-            // Second call to fill the array of pointers
             result = SPIRVReflectNative.spvReflectEnumerateDescriptorBindings(
                 ref _module, out count, nativeBindingsPtrs
             );
-            if (result != SpvReflectResult.SPV_REFLECT_RESULT_SUCCESS)
-            {
-                throw new Exception($"Failed to enumerate descriptor bindings: {result}");
-            }
+            if (result != SpvReflectResult.SPV_REFLECT_RESULT_SUCCESS) throw new Exception($"Failed to enumerate bindings: {result}");
 
-            // Marshal each native pointer to a C# struct
             SpvReflectDescriptorBinding[] bindings = new SpvReflectDescriptorBinding[count];
             for (int i = 0; i < count; i++)
             {
@@ -229,6 +187,10 @@ namespace WKAvatarOptimizer.Core.Native
             if (!_disposed)
             {
                 SPIRVReflectNative.spvReflectDestroyShaderModule(ref _module);
+                
+                if (_pinnedCode.IsAllocated)
+                    _pinnedCode.Free();
+
                 _disposed = true;
             }
         }
