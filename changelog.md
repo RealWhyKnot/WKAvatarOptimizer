@@ -1,5 +1,12 @@
 # Changelog
 
+## v2025.12.04.3
+
+### Fixed
+- `COMException` in `DxcCreateInstance` by correcting `CLSID` and `IID` GUIDs for `IDxcCompiler3` and `IDxcUtils` in `DXC.cs`.
+- `E_INVALIDARG` or crashes in `IDxcCompiler3::Compile` by replacing the incorrect `IDxcBuffer` interface definition with the required `DxcBuffer` struct.
+- Enhanced `dxcompiler.dll` and `dxil.dll` loading logic to ensure `dxil.dll` is loaded into the process address space, resolving potential signing/validation failures.
+
 ## v2025.12.04.2
 
 ### Fixed

@@ -1,10 +1,11 @@
 using System;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.IO;
 
 namespace WKAvatarOptimizer.Core.Native
 {
-    // Common IUnknown interface (all COM interfaces derive from this)
+    // Common IUnknown interface
     [ComImport]
     [Guid("00000000-0000-0000-C000-000000000046")]
     [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
@@ -18,7 +19,7 @@ namespace WKAvatarOptimizer.Core.Native
         uint Release();
     }
 
-    // IID_IDxcBlob
+    // IID_IDxcBlob: 8ba5fb08-5195-40e2-ac58-0d989c3a0102
     [ComImport]
     [Guid("8ba5fb08-5195-40e2-ac58-0d989c3a0102")]
     [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
@@ -28,16 +29,14 @@ namespace WKAvatarOptimizer.Core.Native
         new uint AddRef();
         new uint Release();
 
-        // LPVOID GetBufferPointer();
         [PreserveSig]
         IntPtr GetBufferPointer();
 
-        // SIZE_T GetBufferSize();
         [PreserveSig]
         UIntPtr GetBufferSize();
     }
 
-    // IID_IDxcBlobEncoding : IDxcBlob
+    // IID_IDxcBlobEncoding: 7f61fc7d-950d-4b82-9c32-f30a4c9e1cae
     [ComImport]
     [Guid("7f61fc7d-950d-4b82-9c32-f30a4c9e1cae")]
     [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
@@ -53,32 +52,22 @@ namespace WKAvatarOptimizer.Core.Native
         [PreserveSig]
         new UIntPtr GetBufferSize();
 
-        // HRESULT GetEncoding(BOOL* pKnown, UINT32* pCodePage);
         [PreserveSig]
         int GetEncoding(out int pKnown, out uint pCodePage);
     }
 
-    // IID_IDxcBuffer (This is for input to Compile, it's just an IDxcBlob)
-    [ComImport]
-    [Guid("696cf3ce-fd67-4000-b5bc-a15dba67d40c")]
-    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-    internal interface IDxcBuffer : IDxcBlob
+    // DxcBuffer Struct (Not an interface!)
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct DxcBuffer
     {
-        new IntPtr QueryInterface(ref Guid riid, out IntPtr ppvObject);
-        new uint AddRef();
-        new uint Release();
-
-        [PreserveSig]
-        new IntPtr GetBufferPointer();
-
-        [PreserveSig]
-        new UIntPtr GetBufferSize();
+        public IntPtr Ptr;
+        public UIntPtr Size;
+        public uint Encoding;
     }
 
-
-    // IID_IDxcUtils
+    // IID_IDxcUtils: 4605c46c-5573-4090-b08f-3764e1f35878
     [ComImport]
-    [Guid("4d5e80d7-d4d1-4574-88cc-33b006c21209")]
+    [Guid("4605c46c-5573-4090-b08f-3764e1f35878")]
     [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     internal interface IDxcUtils : IUnknown
     {
@@ -86,13 +75,13 @@ namespace WKAvatarOptimizer.Core.Native
         new uint AddRef();
         new uint Release();
 
-        // HRESULT CreateBlobFromBlob(IDxcBlob* pBlob, UINT32 offset, UINT32 length, IDxcBlob** ppResult);
-        void CreateBlobFromBlob(); // Placeholder, not implemented
+        // 3: CreateBlobFromBlob
+        void CreateBlobFromBlob(); 
 
-        // HRESULT CreateBlobFromFile(LPCWSTR pFileName, UINT32* pCodePage, IDxcBlobEncoding** pResult);
-        void CreateBlobFromFile(); // Placeholder, not implemented
+        // 4: CreateBlobFromFile
+        void CreateBlobFromFile(); 
 
-        // HRESULT CreateBlobWithEncodingFromPinned(LPCVOID pText, UINT32 size, UINT32 codePage, IDxcBlobEncoding** pResult);
+        // 5: CreateBlobWithEncodingFromPinned
         [PreserveSig]
         int CreateBlobWithEncodingFromPinned(
             IntPtr pText,
@@ -101,42 +90,12 @@ namespace WKAvatarOptimizer.Core.Native
             out IDxcBlobEncoding ppResult
         );
 
-        // HRESULT CreateBlobWithEncodingOnHeapCopy(LPCVOID pText, UINT32 size, UINT32 codePage, IDxcBlobEncoding** pResult);
-        void CreateBlobWithEncodingOnHeapCopy(); // Placeholder, not implemented
-
-        // HRESULT CreateResizableBlob(UINT32 initialCapacity, IMalloc* pIMalloc, IDxcBlob** ppResult);
-        void CreateResizableBlob(); // Placeholder, not implemented
-
-        // HRESULT Malloc(IMalloc** ppResult);
-        void Malloc(); // Placeholder, not implemented
-
-        // HRESULT CreateReadStreamFromBlob(IDxcBlob* pBlob, IDxcBlobReadStream** ppResult);
-        void CreateReadStreamFromBlob(); // Placeholder, not implemented
-
-        // HRESULT GetDxilContainerPart(IDxcBlob* pDxilContainer, UINT32 idx, IDxcBlob** ppResult);
-        void GetDxilContainerPart(); // Placeholder, not implemented
-
-        // HRESULT GetDxilContainerPartCount(IDxcBlob* pDxilContainer, UINT32* pResult);
-        void GetDxilContainerPartCount(); // Placeholder, not implemented
-
-        // HRESULT GetDxilContainerPart(IDxcBlob* pDxilContainer, UINT32 idx, IDxcBlob** ppResult);
-        void GetDxilContainerPartByIndex(); // Placeholder, not implemented
-
-        // HRESULT CreateReflection(IDxcBlob* pData, REFIID iid, void** ppResult);
-        [PreserveSig]
-        int CreateReflection(IDxcBlob pData, ref Guid iid, out IntPtr ppvObject);
-
-        // HRESULT BuildArguments(DxcArgBuilderFlags Flags, LPCWSTR pEntryPoint, LPCWSTR pTargetProfile,
-        //                        LPCWSTR* pArguments, UINT32 argCount,
-        //                        DxcDefine* pDefines, UINT32 defineCount,
-        //                        IDxcIncludeHandler* pIncludeHandler, IDxcCompilerArgs** ppResult);
-        void BuildArguments(); // Placeholder, not implemented
+        // ... other methods omitted as they are not used yet
     }
 
-
-    // IID_IDxcCompiler3
+    // IID_IDxcCompiler3: 228b4687-5a6a-4730-900c-9702b2203f54
     [ComImport]
-    [Guid("22f8cf51-28d0-4e97-8357-752156ed2a04")]
+    [Guid("228b4687-5a6a-4730-900c-9702b2203f54")]
     [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     internal interface IDxcCompiler3 : IUnknown
     {
@@ -144,27 +103,22 @@ namespace WKAvatarOptimizer.Core.Native
         new uint AddRef();
         new uint Release();
 
-        // HRESULT Compile(
-        //   IDxcBuffer                 *pSource,
-        //   LPCWSTR                    *pArguments,
-        //   UINT32                     argCount,
-        //   IDxcIncludeHandler         *pIncludeHandler,
-        //   REFIID                     riid,
-        //   LPVOID                     *ppResult
-        // );
+        // 3: Compile
         [PreserveSig]
         int Compile(
-            IDxcBuffer pSource,
+            [In] ref DxcBuffer pSource,
             [MarshalAs(UnmanagedType.LPArray, ArraySubType = UnmanagedType.LPWStr, SizeParamIndex = 2)]
             string[] pArguments,
             uint argCount,
-            IntPtr pIncludeHandler, // Use IntPtr for IDxcIncludeHandler for now
+            IntPtr pIncludeHandler,
             ref Guid riid,
-            out IntPtr ppResult // This will be an IDxcResult
+            out IntPtr ppResult // IDxcResult
         );
+        
+        // ... other methods omitted
     }
 
-    // IID_IDxcResult
+    // IID_IDxcResult: 58346cdd-ce7b-44f9-9509-a052fd6ed1b4
     [ComImport]
     [Guid("58346cdd-ce7b-44f9-9509-a052fd6ed1b4")]
     [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
@@ -174,42 +128,38 @@ namespace WKAvatarOptimizer.Core.Native
         new uint AddRef();
         new uint Release();
 
-        // HRESULT GetStatus(HRESULT* pStatus);
+        // IDxcOperationResult methods
+        
+        // 3: GetStatus
         [PreserveSig]
         int GetStatus(out int pStatus);
 
-        // HRESULT GetResult(IDxcBlob** ppResult);
+        // 4: GetResult (Primary Output)
         [PreserveSig]
         int GetResult(out IDxcBlob ppResult);
 
-        // HRESULT GetErrorBuffer(IDxcBlobEncoding** ppErrors);
+        // 5: GetErrorBuffer
         [PreserveSig]
         int GetErrorBuffer(out IDxcBlobEncoding ppErrors);
 
-        // HRESULT GetOutput(DxcOutKind OutKind, REFIID IID, LPVOID* ppResult, IDxcBlobUtf16** ppOutputName);
-        void GetOutput(); // Placeholder
+        // IDxcResult specific methods
+        
+        // 6: HasOutput
+        void HasOutput();
 
-        // HRESULT GetOpcode(DxcOpcode* pOpcode);
-        void GetOpcode(); // Placeholder
-
-        // HRESULT GetOutputs(UINT32* pCount);
-        void GetOutputs(); // Placeholder
-
-        // HRESULT GetPrimaryOutput(REFIID IID, LPVOID* ppResult, IDxcBlobUtf16** ppOutputName);
-        void GetPrimaryOutput(); // Placeholder
-
-        // HRESULT HasOutput(DxcOutKind OutKind);
-        void HasOutput(); // Placeholder
+        // 7: GetOutput
+        void GetOutput();
+        
+        // ...
     }
 
-
-    // For DxcCreateInstance
-    [Guid("624ce670-3603-4edc-9137-1c0a218ce052")] // CLSID_DxcCompiler
+    // CLSID_DxcCompiler: 73e22d93-e6ce-47f3-b5bf-f0664f39c1b0
+    [Guid("73e22d93-e6ce-47f3-b5bf-f0664f39c1b0")] 
     internal class DxcCompilerClass { }
 
-    [Guid("cd1f6b67-2ab0-482d-8b9d-cd7cba4a0805")] // CLSID_DxcUtils
+    // CLSID_DxcUtils: 624ce670-3603-4edc-9137-1c0a218ce052
+    [Guid("624ce670-3603-4edc-9137-1c0a218ce052")] 
     internal class DxcUtilsClass { }
-
 
     internal static class DxcNative
     {
@@ -223,22 +173,26 @@ namespace WKAvatarOptimizer.Core.Native
 
         static DxcNative()
         {
-            // Try to load dxcompiler.dll explicitly if it hasn't been loaded by Unity yet
-            if (GetModuleHandle(DxcLibraryName) == IntPtr.Zero)
+            // Try to load dxcompiler.dll and dxil.dll explicitly
+            // dxil.dll is required for signing/validation in some DXC versions and should be loaded first or alongside.
+            try
             {
                 // Assume we are in the project root (Unity Editor default)
-                string relativePath = "WKAvatarOptimizer/Plugins/x86_64/dxcompiler.dll";
-                string absolutePath = System.IO.Path.GetFullPath(relativePath);
-                
-                if (System.IO.File.Exists(absolutePath))
+                string dxilPath = Path.GetFullPath("WKAvatarOptimizer/Plugins/x86_64/dxil.dll");
+                if (File.Exists(dxilPath) && GetModuleHandle("dxil.dll") == IntPtr.Zero)
                 {
-                    LoadLibrary(absolutePath);
+                    LoadLibrary(dxilPath);
                 }
-                else
+
+                string dxcPath = Path.GetFullPath("WKAvatarOptimizer/Plugins/x86_64/dxcompiler.dll");
+                if (File.Exists(dxcPath) && GetModuleHandle("dxcompiler.dll") == IntPtr.Zero)
                 {
-                    // Try looking in Assets folder if we are deeper?
-                    // Or just let it fail and hope DllImport searches PATH
+                    LoadLibrary(dxcPath);
                 }
+            }
+            catch
+            {
+                // Silent fail, rely on default search paths
             }
         }
 
@@ -256,11 +210,7 @@ namespace WKAvatarOptimizer.Core.Native
             int hr = DxcCreateInstance(ref clsid, ref iid, out obj);
             if (hr != 0)
             {
-                // HRESULT S_FALSE (1) is also success for some DXC functions, but DxcCreateInstance should be S_OK (0)
-                if (hr != 0) // S_OK
-                {
-                    Marshal.ThrowExceptionForHR(hr);
-                }
+                Marshal.ThrowExceptionForHR(hr);
             }
             return (T)obj;
         }
@@ -289,76 +239,78 @@ namespace WKAvatarOptimizer.Core.Native
             IntPtr pSource = Marshal.AllocHGlobal(sourceBytes.Length);
             Marshal.Copy(sourceBytes, 0, pSource, sourceBytes.Length);
 
-            IDxcBlobEncoding sourceBlobEncoding;
-            int hr = _utils.CreateBlobWithEncodingFromPinned(pSource, (uint)sourceBytes.Length, 0, out sourceBlobEncoding);
-            if (hr != 0)
+            IDxcBlobEncoding sourceBlobEncoding = null;
+            IDxcResult compileResult = null;
+            IDxcBlob spirvBlob = null;
+            IntPtr pResultPtr = IntPtr.Zero;
+
+            try
             {
+                int hr = _utils.CreateBlobWithEncodingFromPinned(pSource, (uint)sourceBytes.Length, 65001 /* UTF8 */, out sourceBlobEncoding);
+                if (hr != 0) Marshal.ThrowExceptionForHR(hr);
+
+                DxcBuffer sourceBuffer = new DxcBuffer();
+                sourceBuffer.Ptr = sourceBlobEncoding.GetBufferPointer();
+                sourceBuffer.Size = sourceBlobEncoding.GetBufferSize();
+                sourceBuffer.Encoding = 65001; // UTF-8
+
+                var args = new string[]
+                {
+                    "-E", entryPoint,
+                    "-T", targetProfile,
+                    "-spirv",
+                    "-fvk-use-dx-layout",
+                    "-fspv-target-env=vulkan1.2",
+                    "-O0" 
+                };
+
+                Guid IDxcResult_GUID = typeof(IDxcResult).GUID;
+
+                hr = _compiler.Compile(
+                    ref sourceBuffer,
+                    args,
+                    (uint)args.Length,
+                    IntPtr.Zero,
+                    ref IDxcResult_GUID,
+                    out pResultPtr
+                );
+
+                if (hr != 0) Marshal.ThrowExceptionForHR(hr);
+
+                compileResult = (IDxcResult)Marshal.GetObjectForIUnknown(pResultPtr);
+
+                int status;
+                compileResult.GetStatus(out status);
+
+                if (status != 0) // S_OK is 0
+                {
+                    IDxcBlobEncoding errorBlob;
+                    compileResult.GetErrorBuffer(out errorBlob);
+                    string errorMessages = string.Empty;
+                    if (errorBlob != null)
+                    {
+                        IntPtr pError = errorBlob.GetBufferPointer();
+                        errorMessages = Marshal.PtrToStringAnsi(pError);
+                        Marshal.ReleaseComObject(errorBlob);
+                    }
+                    throw new Exception($"Shader compilation failed with status {status}: {errorMessages}");
+                }
+
+                compileResult.GetResult(out spirvBlob);
+
+                byte[] spirvBytes = new byte[(int)spirvBlob.GetBufferSize().ToUInt32()];
+                Marshal.Copy(spirvBlob.GetBufferPointer(), spirvBytes, 0, spirvBytes.Length);
+                
+                return spirvBytes;
+            }
+            finally
+            {
+                if (sourceBlobEncoding != null) Marshal.ReleaseComObject(sourceBlobEncoding);
+                if (spirvBlob != null) Marshal.ReleaseComObject(spirvBlob);
+                if (compileResult != null) Marshal.ReleaseComObject(compileResult);
+                if (pResultPtr != IntPtr.Zero) Marshal.Release(pResultPtr);
                 Marshal.FreeHGlobal(pSource);
-                Marshal.ThrowExceptionForHR(hr);
             }
-
-            IDxcBuffer sourceBuffer = (IDxcBuffer)sourceBlobEncoding; // Cast to IDxcBuffer
-
-            var args = new string[]
-            {
-                "-E", entryPoint,
-                "-T", targetProfile,
-                "-spirv", // Compile to SPIR-V
-                "-fvk-use-dx-layout", // Use DX memory layout
-                "-fspv-target-env=vulkan1.2", // Target Vulkan 1.2
-                "-O0", // No optimization (for easier analysis)
-                "-Fd", "foo.pdb" // Generate pdb for debug info
-            };
-
-            Guid IDxcResult_GUID = typeof(IDxcResult).GUID;
-            IntPtr pResultPtr;
-
-            hr = _compiler.Compile(
-                sourceBuffer,
-                args,
-                (uint)args.Length,
-                IntPtr.Zero, // No include handler for now
-                ref IDxcResult_GUID,
-                out pResultPtr
-            );
-            
-            // Release the source blob. The compiler copies the content, so we can release it.
-            Marshal.ReleaseComObject(sourceBlobEncoding); 
-            Marshal.FreeHGlobal(pSource); // Free the unmanaged memory
-
-            if (hr != 0)
-            {
-                Marshal.Release(pResultPtr); // Always release the result pointer if not handled further
-                Marshal.ThrowExceptionForHR(hr);
-            }
-
-            IDxcResult compileResult = (IDxcResult)Marshal.GetObjectForIUnknown(pResultPtr);
-
-            int status;
-            compileResult.GetStatus(out status);
-
-            if (status != 0) // S_OK is 0
-            {
-                IDxcBlobEncoding errorBlob;
-                compileResult.GetErrorBuffer(out errorBlob);
-                string errorMessages = Marshal.PtrToStringAnsi(errorBlob.GetBufferPointer());
-                Marshal.ReleaseComObject(errorBlob);
-                Marshal.ReleaseComObject(compileResult);
-                Marshal.Release(pResultPtr);
-                throw new Exception($"Shader compilation failed with status {status}: {errorMessages}");
-            }
-
-            IDxcBlob spirvBlob;
-            compileResult.GetResult(out spirvBlob);
-
-            byte[] spirvBytes = new byte[(int)spirvBlob.GetBufferSize()];
-            Marshal.Copy(spirvBlob.GetBufferPointer(), spirvBytes, 0, (int)spirvBlob.GetBufferSize());
-            
-            Marshal.ReleaseComObject(spirvBlob);
-            Marshal.ReleaseComObject(compileResult);
-            Marshal.Release(pResultPtr); // Release the final result pointer
-
-            return spirvBytes;
         }
     }
 }
