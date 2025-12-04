@@ -1,5 +1,12 @@
 # Changelog
 
+## v2025.12.04.2
+
+### Fixed
+- `UnityException: GetAssetPath can only be called from the main thread` by pre-fetching shader paths on the main thread in `ShaderAnalyzer` and passing them to the threaded `UniversalShaderLoader`.
+- `DllNotFoundException: dxcompiler.dll` by explicitly loading the DLL using `Kernel32.LoadLibrary` in `DxcNative` static constructor, searching in the local project structure.
+- Updated `.csproj` to copy native plugin DLLs (`dxcompiler.dll`, `dxil.dll`) to the build output directory for easier distribution.
+
 ## v2025.12.04.1
 
 ### Fixed

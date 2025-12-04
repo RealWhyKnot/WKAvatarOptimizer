@@ -215,6 +215,33 @@ namespace WKAvatarOptimizer.Core.Native
     {
         private const string DxcLibraryName = "dxcompiler.dll";
 
+        [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        private static extern IntPtr LoadLibrary(string libname);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        private static extern IntPtr GetModuleHandle(string lpModuleName);
+
+        static DxcNative()
+        {
+            // Try to load dxcompiler.dll explicitly if it hasn't been loaded by Unity yet
+            if (GetModuleHandle(DxcLibraryName) == IntPtr.Zero)
+            {
+                // Assume we are in the project root (Unity Editor default)
+                string relativePath = "WKAvatarOptimizer/Plugins/x86_64/dxcompiler.dll";
+                string absolutePath = System.IO.Path.GetFullPath(relativePath);
+                
+                if (System.IO.File.Exists(absolutePath))
+                {
+                    LoadLibrary(absolutePath);
+                }
+                else
+                {
+                    // Try looking in Assets folder if we are deeper?
+                    // Or just let it fail and hope DllImport searches PATH
+                }
+            }
+        }
+
         [DllImport(DxcLibraryName, ExactSpelling = true)]
         public static extern int DxcCreateInstance(
             ref Guid rclsid,

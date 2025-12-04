@@ -91,6 +91,12 @@
     </Reference>
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="Plugins\**\*.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
   <Target Name="SetBuildDate" BeforeTargets="CoreCompile">
     <PropertyGroup>
       <BuildDate>$([System.DateTime]::Now.ToString("yyyy.MM.dd.HHmmss"))</BuildDate>

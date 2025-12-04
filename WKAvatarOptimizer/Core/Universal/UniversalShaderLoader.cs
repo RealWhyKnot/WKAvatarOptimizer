@@ -17,7 +17,7 @@ namespace WKAvatarOptimizer.Core.Universal
             _dxcCompiler = new DxcCompiler();
         }
 
-        public ShaderIR LoadShader(Shader unityShader, Material sourceMaterial)
+        public ShaderIR LoadShader(Shader unityShader, Material sourceMaterial, string shaderPath = null)
         {
             if (unityShader == null)
             {
@@ -28,7 +28,15 @@ namespace WKAvatarOptimizer.Core.Universal
                 throw new ArgumentNullException(nameof(sourceMaterial));
             }
 
-            string hlslSource = GetShaderSource(unityShader);
+            // Try to get path if not provided (will fail on background thread, but safe on main)
+            if (shaderPath == null)
+            {
+                try {
+                    shaderPath = AssetDatabase.GetAssetPath(unityShader);
+                } catch { /* Ignore threading error, proceed with null path */ }
+            }
+
+            string hlslSource = GetShaderSource(unityShader, shaderPath);
             
             if (string.IsNullOrEmpty(hlslSource))
             {
@@ -69,11 +77,8 @@ namespace WKAvatarOptimizer.Core.Universal
             return ir;
         }
 
-        private string GetShaderSource(Shader unityShader)
+        private string GetShaderSource(Shader unityShader, string shaderPath)
         {
-            // Get the asset path of the shader
-            string shaderPath = AssetDatabase.GetAssetPath(unityShader);
-
             if (string.IsNullOrEmpty(shaderPath))
             {
                 Debug.LogError($"[UniversalShaderLoader] Could not find asset path for shader '{unityShader.name}'. " +
