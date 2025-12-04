@@ -1,5 +1,10 @@
 # Changelog
 
+## v2025.12.04.5
+
+### Fixed
+- **Critical GUID Mismatch:** Corrected the `CLSID` and `IID` for `DxcUtils`. The previous values were incorrect, causing `DxcCreateInstance` to fail with `COMException`. The new values match the official `dxcapi.h` from the DirectXShaderCompiler repository.
+
 ## v2025.12.04.4
 
 ### Changed

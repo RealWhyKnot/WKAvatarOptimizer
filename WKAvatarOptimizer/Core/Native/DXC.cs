@@ -57,7 +57,7 @@ namespace WKAvatarOptimizer.Core.Native
         int GetEncoding(out int pKnown, out uint pCodePage);
     }
 
-    // DxcBuffer Struct (Not an interface!)
+    // DxcBuffer Struct
     [StructLayout(LayoutKind.Sequential)]
     internal struct DxcBuffer
     {
@@ -66,9 +66,9 @@ namespace WKAvatarOptimizer.Core.Native
         public uint Encoding;
     }
 
-    // IID_IDxcUtils: 4605c46c-5573-4090-b08f-3764e1f35878
+    // IID_IDxcUtils: 4605C4CB-2019-492A-ADA4-65F20BB7D67F
     [ComImport]
-    [Guid("4605c46c-5573-4090-b08f-3764e1f35878")]
+    [Guid("4605C4CB-2019-492A-ADA4-65F20BB7D67F")]
     [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     internal interface IDxcUtils : IUnknown
     {
@@ -152,8 +152,8 @@ namespace WKAvatarOptimizer.Core.Native
     [Guid("73e22d93-e6ce-47f3-b5bf-f0664f39c1b0")] 
     internal class DxcCompilerClass { }
 
-    // CLSID_DxcUtils: 624ce670-3603-4edc-9137-1c0a218ce052
-    [Guid("624ce670-3603-4edc-9137-1c0a218ce052")] 
+    // CLSID_DxcUtils: 6245d6af-66e0-48fd-80b4-4d271796748c
+    [Guid("6245d6af-66e0-48fd-80b4-4d271796748c")] 
     internal class DxcUtilsClass { }
 
     internal static class DxcNative
@@ -175,15 +175,12 @@ namespace WKAvatarOptimizer.Core.Native
         {
             try
             {
-                // Define a unique temp path for the runtime
                 string tempFolder = Path.Combine(Path.GetTempPath(), "WKAvatarOptimizer_Runtime");
                 if (!Directory.Exists(tempFolder))
                 {
                     Directory.CreateDirectory(tempFolder);
                 }
 
-                // Names of the embedded resources
-                // Namespace.Folder.Filename.dll
                 string[] resources = { "dxil.dll", "dxcompiler.dll" };
                 var assembly = Assembly.GetExecutingAssembly();
                 
@@ -192,41 +189,56 @@ namespace WKAvatarOptimizer.Core.Native
                     string resourcePath = $"WKAvatarOptimizer.Plugins.x86_64.{resName}";
                     string outputPath = Path.Combine(tempFolder, resName);
 
-                    // Always overwrite to ensure we have the correct version
-                    // Or check hash? For now, overwrite is safer for development.
-                    using (Stream stream = assembly.GetManifestResourceStream(resourcePath))
-                    {
-                        if (stream != null)
+                    // Basic check to avoid constant rewriting if file exists and is open
+                    // But for dev, we overwrite.
+                    try {
+                        using (Stream stream = assembly.GetManifestResourceStream(resourcePath))
                         {
-                            using (FileStream fileStream = new FileStream(outputPath, FileMode.Create, FileAccess.Write))
+                            if (stream != null)
                             {
-                                stream.CopyTo(fileStream);
+                                using (FileStream fileStream = new FileStream(outputPath, FileMode.Create, FileAccess.Write))
+                                {
+                                    stream.CopyTo(fileStream);
+                                }
+                            }
+                            else
+                            {
+                                UnityEngine.Debug.LogError($"[WKAvatarOptimizer] Native resource not found: {resourcePath}");
                             }
                         }
-                        else
-                        {
-                            // Fallback: Maybe it's not embedded?
-                            // UnityEngine.Debug.LogWarning($"[DxcNative] Could not find embedded resource: {resourcePath}");
-                        }
+                    }
+                    catch (IOException) {
+                        // File might be in use, which is fine if it's already loaded.
                     }
                 }
 
-                // Explicitly load dxil.dll first, then dxcompiler.dll from the temp folder
+                // Load dxil.dll
                 string dxilPath = Path.Combine(tempFolder, "dxil.dll");
-                if (File.Exists(dxilPath) && GetModuleHandle("dxil.dll") == IntPtr.Zero)
+                if (File.Exists(dxilPath))
                 {
-                    LoadLibrary(dxilPath);
+                     IntPtr hDxil = LoadLibrary(dxilPath);
+                     if (hDxil == IntPtr.Zero)
+                     {
+                         int err = Marshal.GetLastWin32Error();
+                         UnityEngine.Debug.LogError($"[WKAvatarOptimizer] Failed to load dxil.dll from {dxilPath}. Error: {err}");
+                     }
                 }
 
+                // Load dxcompiler.dll
                 string dxcPath = Path.Combine(tempFolder, "dxcompiler.dll");
-                if (File.Exists(dxcPath) && GetModuleHandle("dxcompiler.dll") == IntPtr.Zero)
+                if (File.Exists(dxcPath))
                 {
-                    LoadLibrary(dxcPath);
+                     IntPtr hDxc = LoadLibrary(dxcPath);
+                     if (hDxc == IntPtr.Zero)
+                     {
+                         int err = Marshal.GetLastWin32Error();
+                         UnityEngine.Debug.LogError($"[WKAvatarOptimizer] Failed to load dxcompiler.dll from {dxcPath}. Error: {err}");
+                     }
                 }
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // UnityEngine.Debug.LogError($"[DxcNative] Failed to extract/load native libraries: {ex.Message}");
+                UnityEngine.Debug.LogError($"[WKAvatarOptimizer] Exception during native library loading: {ex}");
             }
         }
 
@@ -234,18 +246,22 @@ namespace WKAvatarOptimizer.Core.Native
         public static extern int DxcCreateInstance(
             ref Guid rclsid,
             ref Guid riid,
-            [MarshalAs(UnmanagedType.IUnknown)]
-            out object ppv
+            out IntPtr ppv
         );
 
         public static T CreateDxcInstance<T>(Guid clsid, Guid iid)
         {
-            object obj;
-            int hr = DxcCreateInstance(ref clsid, ref iid, out obj);
-            if (hr != 0)
+            IntPtr ptr;
+            int hr = DxcCreateInstance(ref clsid, ref iid, out ptr);
+            
+            if (hr != 0 || ptr == IntPtr.Zero)
             {
+                UnityEngine.Debug.LogError($"[WKAvatarOptimizer] DxcCreateInstance failed for CLSID {clsid} / IID {iid}. HRESULT: 0x{hr:X}");
                 Marshal.ThrowExceptionForHR(hr);
             }
+            
+            // Convert IntPtr to COM Object
+            object obj = Marshal.GetObjectForIUnknown(ptr);
             return (T)obj;
         }
     }
@@ -257,12 +273,21 @@ namespace WKAvatarOptimizer.Core.Native
 
         public DxcCompiler()
         {
-            _compiler = DxcNative.CreateDxcInstance<IDxcCompiler3>(
-                typeof(DxcCompilerClass).GUID, typeof(IDxcCompiler3).GUID
-            );
-            _utils = DxcNative.CreateDxcInstance<IDxcUtils>(
-                typeof(DxcUtilsClass).GUID, typeof(IDxcUtils).GUID
-            );
+            try 
+            {
+                _compiler = DxcNative.CreateDxcInstance<IDxcCompiler3>(
+                    typeof(DxcCompilerClass).GUID, typeof(IDxcCompiler3).GUID
+                );
+                
+                _utils = DxcNative.CreateDxcInstance<IDxcUtils>(
+                    typeof(DxcUtilsClass).GUID, typeof(IDxcUtils).GUID
+                );
+            }
+            catch (Exception ex)
+            {
+                UnityEngine.Debug.LogError($"[WKAvatarOptimizer] Failed to initialize DXC Compiler: {ex}");
+                throw;
+            }
         }
 
         public byte[] CompileToSpirV(string source, string entryPoint, string targetProfile)
