@@ -139,7 +139,7 @@ namespace WKAvatarOptimizer.Core.Native
         int GetErrorBuffer([MarshalAs(UnmanagedType.Interface)] out IDxcBlobEncoding ppErrors); // 5
     }
 
-    [ComImport, Guid("58346c82-7ed3-42d0-bc51-63636e677ed3"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    [ComImport, Guid("58346CDA-DDE7-4497-9461-6F87AF5E0659"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     internal interface IDxcResult : IDxcOperationResult
     {
         // Inherits 3, 4, 5 from IDxcOperationResult
@@ -348,13 +348,12 @@ namespace WKAvatarOptimizer.Core.Native
             IntPtr pSource = Marshal.AllocHGlobal(sourceBytes.Length);
             Marshal.Copy(sourceBytes, 0, pSource, sourceBytes.Length);
 
-            IDxcOperationResult compileResult = null;
+            IDxcResult compileResult = null; // Changed from IDxcOperationResult to IDxcResult
             IDxcBlob spirvBlob = null;
             IntPtr pResultPtr = IntPtr.Zero;
             
             // Explicitly define GUIDs to avoid issues with typeof(...).GUID returning empty GUIDs
-            Guid RequestGUID = new Guid("CEDB484A-D4E9-445A-B991-CA21CA157DC2"); // IDxcOperationResult_GUID
-            Guid IDxcResult_Interface_GUID = new Guid("58346c82-7ed3-42d0-bc51-63636e677ed3"); // IDxcResult_GUID
+            Guid RequestGUID = new Guid("58346CDA-DDE7-4497-9461-6F87AF5E0659"); // IDxcResult GUID (corrected)
             
             finalResult.RequestedInterfaceGuid = RequestGUID;
 
@@ -378,7 +377,7 @@ namespace WKAvatarOptimizer.Core.Native
                     args,
                     (uint)args.Length,
                     IntPtr.Zero,
-                    ref RequestGUID, // We request IDxcOperationResult here
+                    ref RequestGUID, // We request IDxcResult here
                     out pResultPtr
                 );
                 
@@ -402,21 +401,21 @@ namespace WKAvatarOptimizer.Core.Native
                 try
                 {
                     logBuilder.AppendLine("[DxcCompiler] Attempting Marshal.GetObjectForIUnknown(pResultPtr)...");
-                    compileResult = (IDxcOperationResult)Marshal.GetObjectForIUnknown(pResultPtr);
-                    logBuilder.AppendLine("[DxcCompiler] Marshal.GetObjectForIUnknown succeeded (IDxcOperationResult).");
+                    compileResult = (IDxcResult)Marshal.GetObjectForIUnknown(pResultPtr); // Cast to IDxcResult
+                    logBuilder.AppendLine("[DxcCompiler] Marshal.GetObjectForIUnknown succeeded (IDxcResult).");
                 }
                 catch (InvalidCastException ex)
                 {
-                    // DIAGNOSTICS: Cast to IDxcOperationResult failed
-                    finalResult.ErrorMessage = $"Failed to cast compilation result to IDxcOperationResult.";
+                    // DIAGNOSTICS: Cast to IDxcResult failed
+                    finalResult.ErrorMessage = $"Failed to cast compilation result to IDxcResult.";
                     finalResult.FullExceptionDetails = ex.ToString();
-                    logBuilder.AppendLine($"[DxcCompiler] InvalidCastException during cast to IDxcOperationResult: {ex.Message}");
+                    logBuilder.AppendLine($"[DxcCompiler] InvalidCastException during cast to IDxcResult: {ex.Message}");
 
-                    // For debug logging, also try to query the IDxcResult interface
+                    // Manual QI for requested GUID (IDxcResult)
                     IntPtr testPtr = IntPtr.Zero;
                     int qiHr = Marshal.QueryInterface(pResultPtr, ref RequestGUID, out testPtr); 
                     finalResult.HResultForQueryInterface = qiHr;
-                    logBuilder.AppendLine($"[DxcCompiler] Manual QI for RequestGUID ({RequestGUID}) HR: {qiHr:X8}");
+                    logBuilder.AppendLine($"[DxcCompiler] Manual QI for RequestedGUID ({RequestGUID}) HR: {qiHr:X8}");
                     if (testPtr != IntPtr.Zero) Marshal.Release(testPtr);
 
                     finalResult.VerboseLog = logBuilder.ToString();
@@ -425,13 +424,13 @@ namespace WKAvatarOptimizer.Core.Native
 
                 if (compileResult == null)
                 {
-                    finalResult.ErrorMessage = "Failed to get IDxcOperationResult from pointer (GetObjectForIUnknown returned null)";
+                    finalResult.ErrorMessage = "Failed to get IDxcResult from pointer (GetObjectForIUnknown returned null)";
                     finalResult.VerboseLog = logBuilder.ToString();
                     return finalResult;
                 }
 
                 int status;
-                compileResult.GetStatus(out status);
+                compileResult.GetStatus(out status); // IDxcResult inherits GetStatus from IDxcOperationResult
                 logBuilder.AppendLine($"[DxcCompiler] GetStatus returned: {status}");
 
                 if (status != 0)
@@ -439,7 +438,7 @@ namespace WKAvatarOptimizer.Core.Native
                     IDxcBlobEncoding errorBlob = null;
                     string errorMessages = "Unknown compilation error";
                     try {
-                        compileResult.GetErrorBuffer(out errorBlob);
+                        compileResult.GetErrorBuffer(out errorBlob); // IDxcResult inherits GetErrorBuffer
                         if (errorBlob != null)
                         {
                             IntPtr pError = errorBlob.GetBufferPointer();
@@ -460,7 +459,7 @@ namespace WKAvatarOptimizer.Core.Native
                     return finalResult;
                 }
 
-                compileResult.GetResult(out spirvBlob);
+                compileResult.GetResult(out spirvBlob); // IDxcResult inherits GetResult
                 if (spirvBlob == null)
                 {
                     finalResult.ErrorMessage = "Compilation succeeded but no SPIR-V blob was returned.";

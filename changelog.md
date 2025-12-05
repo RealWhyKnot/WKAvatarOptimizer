@@ -1,5 +1,11 @@
 # Changelog
 
+## v2025.12.05.8
+
+### Fixed
+- **Critical DXC Interface Compatibility:** Identified and corrected the `IDxcResult` interface GUID for `dxcompiler.dll` v1.8.2505.32. The previous GUID (`58346c82-...`) was incorrect, causing `IDxcCompiler3::Compile` to return `E_NOINTERFACE` (0x80004002) and a NULL result pointer. The correct modern `IDxcResult` GUID (`58346CDA-DDE7-4497-9461-6F87AF5E0659`) is now used, ensuring proper COM interface negotiation and allowing successful compilation.
+- **VTable Consistency:** Reverted to requesting `IDxcResult` directly (instead of `IDxcOperationResult`) as the definitive result interface for `Compile`, now that its GUID is confirmed.
+
 ## v2025.12.05.7
 
 ### Added
