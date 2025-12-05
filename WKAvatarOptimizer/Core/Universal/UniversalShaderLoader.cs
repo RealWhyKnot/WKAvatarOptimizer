@@ -48,7 +48,7 @@ namespace WKAvatarOptimizer.Core.Universal
             string entryPoint = "main";
             string targetProfile = "ps_6_0";
 
-            byte[] spirvBytecode = null;
+            DxcCompileResult compileResult;
             try
             {
                 DxcConfiguration config = new DxcConfiguration 
@@ -59,12 +59,24 @@ namespace WKAvatarOptimizer.Core.Universal
                     VulkanLayout = true,
                     Optimization = false
                 };
-                spirvBytecode = _dxcCompiler.CompileToSpirV(hlslSource, config);
+                compileResult = _dxcCompiler.CompileToSpirV(hlslSource, config);
             }
             catch (Exception ex)
             {
-                Debug.LogError($"[UniversalShaderLoader] DXC compilation failed for shader '{shaderName}': {ex.Message}");
+                // This catch handles COMExceptions or other unexpected errors from CompileToSpirV
+                Debug.LogError($"[UniversalShaderLoader] Unexpected error during DXC compilation for shader '{shaderName}': {ex.Message}\nDetails: {ex.ToString()}");
                 return CreateFallbackShaderIR(shaderName, sourceMaterial, ex.Message);
+            }
+
+            if (!compileResult.Succeeded)
+            {
+                Debug.LogError($"[UniversalShaderLoader] DXC compilation failed for shader '{shaderName}': {compileResult.ErrorMessage}");
+                if (!string.IsNullOrEmpty(compileResult.FullExceptionDetails))
+                {
+                    Debug.LogError($"[UniversalShaderLoader] DXC Compile Details: pResultPtr={compileResult.ResultPointerAddress:X8}, RequestedGUID={compileResult.RequestedInterfaceGuid}, QI_HR={compileResult.HResultForQueryInterface:X8}");
+                    Debug.LogError($"[UniversalShaderLoader] Full Exception: {compileResult.FullExceptionDetails}");
+                }
+                return CreateFallbackShaderIR(shaderName, sourceMaterial, compileResult.ErrorMessage);
             }
 
             ShaderIR ir = new ShaderIR
@@ -73,7 +85,7 @@ namespace WKAvatarOptimizer.Core.Universal
                 MaterialName = materialName
             };
 
-            using (SPIRVReflector reflector = new SPIRVReflector(spirvBytecode))
+            using (SPIRVReflector reflector = new SPIRVReflector(compileResult.SpirvBytes))
             {
                 var bindings = reflector.GetDescriptorBindings();
                 PopulateShaderIRFromReflectionAndMaterial(ir, bindings, shaderName, sourceMaterial);

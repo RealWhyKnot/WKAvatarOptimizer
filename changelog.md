@@ -1,5 +1,10 @@
 # Changelog
 
+## v2025.12.05.4
+
+### Added
+- **Enhanced Diagnostics:** Refactored DXC compilation process to return a structured `DxcCompileResult` object containing detailed diagnostic information on compilation failures. This ensures that `InvalidCastException` details, `pResultPtr` address, requested GUIDs, and manual `QueryInterface` HRESULTs are always captured and logged in the Unity Editor log, providing comprehensive debugging information.
+
 ## v2025.12.05.3
 
 ### Fixed

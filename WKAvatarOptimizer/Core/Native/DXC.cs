@@ -304,6 +304,17 @@ namespace WKAvatarOptimizer.Core.Native
         }
     }
 
+    public struct DxcCompileResult
+    {
+        public bool Succeeded;
+        public byte[] SpirvBytes;
+        public string ErrorMessage;
+        public int HResultForQueryInterface;
+        public long ResultPointerAddress; // IntPtr doesn't serialize easily for logging
+        public string FullExceptionDetails; // To capture ex.ToString()
+        public Guid RequestedInterfaceGuid; // To store IDxcResult_GUID or IDxcOperationResult_GUID
+    }
+
     internal class DxcCompiler
     {
         private IDxcCompiler3 _compiler;
@@ -315,10 +326,20 @@ namespace WKAvatarOptimizer.Core.Native
             );
         }
 
-        public byte[] CompileToSpirV(string source, DxcConfiguration config)
+        public DxcCompileResult CompileToSpirV(string source, DxcConfiguration config)
         {
-            if (string.IsNullOrEmpty(source)) throw new ArgumentException("Shader source is empty", nameof(source));
-            if (_compiler == null) throw new InvalidOperationException("DXC compiler not initialized");
+            DxcCompileResult finalResult = new DxcCompileResult { Succeeded = false };
+
+            if (string.IsNullOrEmpty(source))
+            {
+                finalResult.ErrorMessage = "Shader source is empty";
+                return finalResult;
+            }
+            if (_compiler == null)
+            {
+                finalResult.ErrorMessage = "DXC compiler not initialized";
+                return finalResult;
+            }
 
             var sourceBytes = Encoding.UTF8.GetBytes(source);
             IntPtr pSource = Marshal.AllocHGlobal(sourceBytes.Length);
@@ -327,7 +348,7 @@ namespace WKAvatarOptimizer.Core.Native
             IDxcOperationResult compileResult = null;
             IDxcBlob spirvBlob = null;
             IntPtr pResultPtr = IntPtr.Zero;
-            Guid IDxcResult_GUID = typeof(IDxcResult).GUID;
+            Guid IDxcResult_GUID = typeof(IDxcResult).GUID; // This is what Compile creates.
 
             try
             {
@@ -345,68 +366,102 @@ namespace WKAvatarOptimizer.Core.Native
                     args,
                     (uint)args.Length,
                     IntPtr.Zero,
-                    ref IDxcResult_GUID,
+                    ref IDxcResult_GUID, // We request IDxcResult here
                     out pResultPtr
                 );
-
-                if (hr != 0) Marshal.ThrowExceptionForHR(hr);
-                if (pResultPtr == IntPtr.Zero) throw new Exception("Compile returned null result pointer");
+                
+                if (hr != 0)
+                {
+                    finalResult.ErrorMessage = $"DXC Compile failed with HRESULT: {hr:X8}";
+                    Marshal.ThrowExceptionForHR(hr); // This will throw a COMException.
+                }
+                if (pResultPtr == IntPtr.Zero)
+                {
+                    finalResult.ErrorMessage = "Compile returned null result pointer";
+                    return finalResult;
+                }
+                
+                finalResult.ResultPointerAddress = pResultPtr.ToInt64();
+                finalResult.RequestedInterfaceGuid = IDxcResult_GUID;
 
                 try
                 {
-                    // Try to cast to IDxcOperationResult (base interface) which is more stable
                     compileResult = (IDxcOperationResult)Marshal.GetObjectForIUnknown(pResultPtr);
                 }
                 catch (InvalidCastException ex)
                 {
-                    // DIAGNOSTICS
-                    Debug.LogError($"[DxcCompiler] Cast to IDxcOperationResult failed. pResultPtr: {pResultPtr.ToInt64():X8}");
-                    
+                    // DIAGNOSTICS: Cast to IDxcOperationResult failed
+                    finalResult.ErrorMessage = $"Failed to cast compilation result to IDxcOperationResult.";
+                    finalResult.FullExceptionDetails = ex.ToString();
+
                     Guid IDxcOperationResult_GUID = typeof(IDxcOperationResult).GUID;
                     IntPtr testPtr = IntPtr.Zero;
                     int qiHr = Marshal.QueryInterface(pResultPtr, ref IDxcOperationResult_GUID, out testPtr);
-                    Debug.LogError($"[DxcCompiler] Manual QueryInterface for IDxcOperationResult HR: {qiHr:X8}");
-                    if (testPtr != IntPtr.Zero) Marshal.Release(testPtr);
+                    finalResult.HResultForQueryInterface = qiHr;
+                    if (testPtr != IntPtr.Zero) Marshal.Release(testPtr); // Release queried interface
 
-                    qiHr = Marshal.QueryInterface(pResultPtr, ref IDxcResult_GUID, out testPtr);
-                    Debug.LogError($"[DxcCompiler] Manual QueryInterface for IDxcResult HR: {qiHr:X8}");
-                    if (testPtr != IntPtr.Zero) Marshal.Release(testPtr);
-
-                    throw new Exception($"Failed to cast compilation result to IDxcOperationResult. See Unity Console for details.", ex);
+                    return finalResult;
                 }
 
-                if (compileResult == null) throw new Exception("Failed to get IDxcOperationResult from pointer");
+                if (compileResult == null)
+                {
+                    finalResult.ErrorMessage = "Failed to get IDxcOperationResult from pointer (GetObjectForIUnknown returned null)";
+                    return finalResult;
+                }
 
                 int status;
                 compileResult.GetStatus(out status);
 
                 if (status != 0)
                 {
-                    IDxcBlobEncoding errorBlob;
-                    compileResult.GetErrorBuffer(out errorBlob);
+                    IDxcBlobEncoding errorBlob = null;
                     string errorMessages = "Unknown compilation error";
-                    if (errorBlob != null)
-                    {
-                        IntPtr pError = errorBlob.GetBufferPointer();
-                        errorMessages = Marshal.PtrToStringAnsi(pError);
-                        Marshal.ReleaseComObject(errorBlob);
+                    try {
+                        compileResult.GetErrorBuffer(out errorBlob);
+                        if (errorBlob != null)
+                        {
+                            IntPtr pError = errorBlob.GetBufferPointer();
+                            errorMessages = Marshal.PtrToStringAnsi(pError);
+                        }
                     }
-                    throw new Exception($"Shader compilation failed with status {status}: {errorMessages}");
+                    catch (Exception ex)
+                    {
+                        errorMessages = $"Failed to get error buffer: {ex.Message}";
+                    }
+                    finally
+                    {
+                        if (errorBlob != null) Marshal.ReleaseComObject(errorBlob);
+                    }
+                    
+                    finalResult.ErrorMessage = $"Shader compilation failed with status {status}: {errorMessages}";
+                    return finalResult;
                 }
 
                 compileResult.GetResult(out spirvBlob);
-                if (spirvBlob == null) throw new Exception("Compilation succeeded but no SPIR-V blob was returned.");
+                if (spirvBlob == null)
+                {
+                    finalResult.ErrorMessage = "Compilation succeeded but no SPIR-V blob was returned.";
+                    return finalResult;
+                }
 
                 byte[] spirvBytes = new byte[(int)spirvBlob.GetBufferSize().ToUInt32()];
                 Marshal.Copy(spirvBlob.GetBufferPointer(), spirvBytes, 0, spirvBytes.Length);
                 
-                return spirvBytes;
+                finalResult.Succeeded = true;
+                finalResult.SpirvBytes = spirvBytes;
+                return finalResult;
+            }
+            catch (Exception ex)
+            {
+                finalResult.ErrorMessage = $"Unexpected error during DXC compilation: {ex.Message}";
+                finalResult.FullExceptionDetails = ex.ToString();
+                return finalResult;
             }
             finally
             {
                 if (spirvBlob != null) Marshal.ReleaseComObject(spirvBlob);
                 if (compileResult != null) Marshal.ReleaseComObject(compileResult);
-                if (pResultPtr != IntPtr.Zero) Marshal.Release(pResultPtr);
+                if (pResultPtr != IntPtr.Zero) Marshal.Release(pResultPtr); // Release the original raw pointer
                 Marshal.FreeHGlobal(pSource);
             }
         }
