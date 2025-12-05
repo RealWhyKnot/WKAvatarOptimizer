@@ -1,5 +1,10 @@
 # Changelog
 
+## v2025.12.05.5
+
+### Fixed
+- **DXC Interface Compatibility:** Modified `DxcCompiler.CompileToSpirV` to explicitly request the `IDxcOperationResult` interface (GUID `CEDB484A...`) from `IDxcCompiler3::Compile` instead of `IDxcResult`. The embedded `dxcompiler.dll` (v1.8.2505) was returning `E_NOINTERFACE` (0x80004002) when `IDxcResult` (GUID `5834...`) was requested, indicating it does not support the modern result interface or uses a different IID. Requesting the base `IDxcOperationResult` interface ensures compatibility and resolves the `InvalidCastException` / `E_NOINTERFACE` errors.
+
 ## v2025.12.05.4
 
 ### Added

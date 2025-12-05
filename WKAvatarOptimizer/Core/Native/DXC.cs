@@ -348,7 +348,9 @@ namespace WKAvatarOptimizer.Core.Native
             IDxcOperationResult compileResult = null;
             IDxcBlob spirvBlob = null;
             IntPtr pResultPtr = IntPtr.Zero;
-            Guid IDxcResult_GUID = typeof(IDxcResult).GUID; // This is what Compile creates.
+            
+            // Request IDxcOperationResult directly as IDxcResult (5834...) is not supported by this DLL
+            Guid RequestGUID = typeof(IDxcOperationResult).GUID; 
 
             try
             {
@@ -366,14 +368,15 @@ namespace WKAvatarOptimizer.Core.Native
                     args,
                     (uint)args.Length,
                     IntPtr.Zero,
-                    ref IDxcResult_GUID, // We request IDxcResult here
+                    ref RequestGUID, 
                     out pResultPtr
                 );
                 
                 if (hr != 0)
                 {
                     finalResult.ErrorMessage = $"DXC Compile failed with HRESULT: {hr:X8}";
-                    Marshal.ThrowExceptionForHR(hr); // This will throw a COMException.
+                    // If E_NOINTERFACE, it means even IDxcOperationResult is not supported??
+                    Marshal.ThrowExceptionForHR(hr);
                 }
                 if (pResultPtr == IntPtr.Zero)
                 {
@@ -382,7 +385,7 @@ namespace WKAvatarOptimizer.Core.Native
                 }
                 
                 finalResult.ResultPointerAddress = pResultPtr.ToInt64();
-                finalResult.RequestedInterfaceGuid = IDxcResult_GUID;
+                finalResult.RequestedInterfaceGuid = RequestGUID;
 
                 try
                 {
@@ -390,16 +393,8 @@ namespace WKAvatarOptimizer.Core.Native
                 }
                 catch (InvalidCastException ex)
                 {
-                    // DIAGNOSTICS: Cast to IDxcOperationResult failed
                     finalResult.ErrorMessage = $"Failed to cast compilation result to IDxcOperationResult.";
                     finalResult.FullExceptionDetails = ex.ToString();
-
-                    Guid IDxcOperationResult_GUID = typeof(IDxcOperationResult).GUID;
-                    IntPtr testPtr = IntPtr.Zero;
-                    int qiHr = Marshal.QueryInterface(pResultPtr, ref IDxcOperationResult_GUID, out testPtr);
-                    finalResult.HResultForQueryInterface = qiHr;
-                    if (testPtr != IntPtr.Zero) Marshal.Release(testPtr); // Release queried interface
-
                     return finalResult;
                 }
 
@@ -461,7 +456,7 @@ namespace WKAvatarOptimizer.Core.Native
             {
                 if (spirvBlob != null) Marshal.ReleaseComObject(spirvBlob);
                 if (compileResult != null) Marshal.ReleaseComObject(compileResult);
-                if (pResultPtr != IntPtr.Zero) Marshal.Release(pResultPtr); // Release the original raw pointer
+                if (pResultPtr != IntPtr.Zero) Marshal.Release(pResultPtr);
                 Marshal.FreeHGlobal(pSource);
             }
         }
