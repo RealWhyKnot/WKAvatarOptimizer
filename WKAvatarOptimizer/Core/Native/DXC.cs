@@ -295,15 +295,12 @@ namespace WKAvatarOptimizer.Core.Native
     internal class DxcCompiler
     {
         private IDxcCompiler3 _compiler;
-        private IDxcLibrary _library;
-
+        // Utils/Library not strictly needed for compilation if we use DxcBuffer directly
+        
         public DxcCompiler()
         {
             _compiler = DxcNative.CreateDxcInstance<IDxcCompiler3>(
                 typeof(DxcCompilerClass).GUID, typeof(IDxcCompiler3).GUID
-            );
-            _library = DxcNative.CreateDxcInstance<IDxcLibrary>(
-                typeof(DxcUtilsClass).GUID, typeof(IDxcLibrary).GUID
             );
         }
 
@@ -311,33 +308,29 @@ namespace WKAvatarOptimizer.Core.Native
         {
             if (string.IsNullOrEmpty(source)) throw new ArgumentException("Shader source is empty", nameof(source));
             if (_compiler == null) throw new InvalidOperationException("DXC compiler not initialized");
-            if (_library == null) throw new InvalidOperationException("DXC library not initialized");
 
             var sourceBytes = Encoding.UTF8.GetBytes(source);
             IntPtr pSource = Marshal.AllocHGlobal(sourceBytes.Length);
             Marshal.Copy(sourceBytes, 0, pSource, sourceBytes.Length);
 
-            IDxcBlobEncoding sourceBlobEncoding = null;
             IDxcResult compileResult = null;
             IDxcBlob spirvBlob = null;
             IntPtr pResultPtr = IntPtr.Zero;
 
             try
             {
-                // CreateBlobWithEncodingOnHeapCopy (Slot 7)
-                int hr = _library.CreateBlobWithEncodingOnHeapCopy(pSource, (uint)sourceBytes.Length, 65001, out sourceBlobEncoding);
-                if (hr != 0) Marshal.ThrowExceptionForHR(hr);
-                if (sourceBlobEncoding == null) throw new Exception("CreateBlobWithEncodingOnHeapCopy returned null sourceBlobEncoding");
-
-                DxcBuffer sourceBuffer = new DxcBuffer();
-                sourceBuffer.Ptr = sourceBlobEncoding.GetBufferPointer();
-                sourceBuffer.Size = sourceBlobEncoding.GetBufferSize();
-                sourceBuffer.Encoding = 65001;
+                // Direct DxcBuffer construction - avoids CreateBlob crashes
+                DxcBuffer sourceBuffer = new DxcBuffer
+                {
+                    Ptr = pSource,
+                    Size = (UIntPtr)sourceBytes.Length,
+                    Encoding = 65001 // UTF-8
+                };
 
                 string[] args = config.ToArguments();
                 Guid IDxcResult_GUID = typeof(IDxcResult).GUID;
 
-                hr = _compiler.Compile(
+                int hr = _compiler.Compile(
                     ref sourceBuffer,
                     args,
                     (uint)args.Length,
@@ -379,7 +372,6 @@ namespace WKAvatarOptimizer.Core.Native
             }
             finally
             {
-                if (sourceBlobEncoding != null) Marshal.ReleaseComObject(sourceBlobEncoding);
                 if (spirvBlob != null) Marshal.ReleaseComObject(spirvBlob);
                 if (compileResult != null) Marshal.ReleaseComObject(compileResult);
                 if (pResultPtr != IntPtr.Zero) Marshal.Release(pResultPtr);

@@ -1,10 +1,10 @@
 # Changelog
 
-## v2025.12.04.7
+## v2025.12.05.0
 
 ### Fixed
+- **DXC Compilation Crash:** Resolved persistent crashes and `NullReferenceException`s by bypassing `IDxcUtils` and `IDxcLibrary` blob creation methods entirely. `UniversalShaderLoader` now constructs `DxcBuffer` directly from managed memory pointers, ensuring robust shader compilation without relying on unstable blob factory methods in the embedded `dxcompiler.dll`.
 - **Threading Stability:** Resolved `UnityException: GetName can only be called from the main thread` by refactoring `ShaderAnalyzer` and `UniversalShaderLoader` to pre-fetch shader and material names on the main thread before passing them to background tasks.
-- **DXC Interface Stability:** Switched from `IDxcUtils` to the legacy `IDxcLibrary` interface for blob creation (`CreateBlobWithEncodingOnHeapCopy`). This resolves persistent `NullReferenceException` and `CreateBlob` failures observed with the embedded `dxcompiler.dll` version 1.8, ensuring reliable shader source loading.
 
 ## v2025.12.04.6
 
