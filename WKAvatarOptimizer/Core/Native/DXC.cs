@@ -109,11 +109,10 @@ namespace WKAvatarOptimizer.Core.Native
         [PreserveSig]
         int Compile(
             [In] ref DxcBuffer pSource,
-            [MarshalAs(UnmanagedType.LPArray, ArraySubType = UnmanagedType.LPWStr, SizeParamIndex = 2)]
-            string[] pArguments,
+            [In] IntPtr pArguments, // LPCWSTR* - manually marshalled
             uint argCount,
-            IntPtr pIncludeHandler,
-            ref Guid riid,
+            [In] IntPtr pIncludeHandler,
+            [In] ref Guid riid,
             out IntPtr ppResult
         );
 
@@ -357,6 +356,10 @@ namespace WKAvatarOptimizer.Core.Native
             
             finalResult.RequestedInterfaceGuid = RequestGUID;
 
+            GCHandle[] argHandles = null;
+            GCHandle argArrayHandle = default;
+            IntPtr pArgs = IntPtr.Zero;
+
             try
             {
                 DxcBuffer sourceBuffer = new DxcBuffer
@@ -368,13 +371,30 @@ namespace WKAvatarOptimizer.Core.Native
 
                 string[] args = config.ToArguments();
                 
+                // Manual marshalling for string[] arguments
+                argHandles = new GCHandle[args.Length];
+                IntPtr[] argPtrs = new IntPtr[args.Length];
+
+                for (int i = 0; i < args.Length; i++)
+                {
+                    // Convert string to wide char array and pin, ensuring null termination
+                    byte[] argBytes = Encoding.Unicode.GetBytes(args[i] + "\0"); 
+                    argHandles[i] = GCHandle.Alloc(argBytes, GCHandleType.Pinned);
+                    argPtrs[i] = argHandles[i].AddrOfPinnedObject();
+                }
+
+                // Pin the array of pointers itself
+                argArrayHandle = GCHandle.Alloc(argPtrs, GCHandleType.Pinned);
+                pArgs = argArrayHandle.AddrOfPinnedObject();
+                // End manual marshalling
+
                 logBuilder.AppendLine($"[DxcCompiler] DxcBuffer: Ptr={pSource.ToInt64():X8}, Size={sourceBytes.Length}, Encoding={sourceBuffer.Encoding}");
-                logBuilder.AppendLine($"[DxcCompiler] Arguments: {string.Join(" ", args)}");
+                logBuilder.AppendLine($"[DxcCompiler] Arguments: {string.Join(" ", args)} (Manually Marshalled: {pArgs.ToInt64():X8})");
                 logBuilder.AppendLine($"[DxcCompiler] RequestGUID: {RequestGUID}");
 
                 int hr = _compiler.Compile(
                     ref sourceBuffer,
-                    args,
+                    pArgs, // Pass manually marshalled arguments
                     (uint)args.Length,
                     IntPtr.Zero,
                     ref RequestGUID, // We request IDxcResult here
@@ -489,6 +509,16 @@ namespace WKAvatarOptimizer.Core.Native
                 if (compileResult != null) Marshal.ReleaseComObject(compileResult);
                 if (pResultPtr != IntPtr.Zero) Marshal.Release(pResultPtr);
                 Marshal.FreeHGlobal(pSource);
+
+                if (argArrayHandle.IsAllocated) argArrayHandle.Free();
+                if (argHandles != null)
+                {
+                    foreach (var handle in argHandles)
+                    {
+                        if (handle.IsAllocated)
+                            handle.Free();
+                    }
+                }
             }
         }
     }

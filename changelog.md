@@ -1,5 +1,10 @@
 # Changelog
 
+## v2025.12.05.9
+
+### Fixed
+- **DXC Argument Marshalling:** Implemented manual marshalling for the `string[] pArguments` parameter when calling `IDxcCompiler3::Compile`. The previous automatic marshalling was likely causing internal failures in `dxcompiler.dll`, leading to `E_NOINTERFACE` or unexpected behavior. Each argument string is now manually converted to a null-terminated wide string and pinned, and an array of these pointers is passed, ensuring correct ABI compatibility.
+
 ## v2025.12.05.8
 
 ### Fixed
