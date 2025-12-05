@@ -4,6 +4,7 @@ using System.Text;
 using System.IO;
 using System.Reflection;
 using System.Collections.Generic;
+using UnityEngine;
 
 namespace WKAvatarOptimizer.Core.Native
 {
@@ -316,6 +317,7 @@ namespace WKAvatarOptimizer.Core.Native
             IDxcResult compileResult = null;
             IDxcBlob spirvBlob = null;
             IntPtr pResultPtr = IntPtr.Zero;
+            Guid IDxcResult_GUID = typeof(IDxcResult).GUID;
 
             try
             {
@@ -328,8 +330,7 @@ namespace WKAvatarOptimizer.Core.Native
                 };
 
                 string[] args = config.ToArguments();
-                Guid IDxcResult_GUID = typeof(IDxcResult).GUID;
-
+                
                 int hr = _compiler.Compile(
                     ref sourceBuffer,
                     args,
@@ -342,7 +343,30 @@ namespace WKAvatarOptimizer.Core.Native
                 if (hr != 0) Marshal.ThrowExceptionForHR(hr);
                 if (pResultPtr == IntPtr.Zero) throw new Exception("Compile returned null result pointer");
 
-                compileResult = (IDxcResult)Marshal.GetObjectForIUnknown(pResultPtr);
+                try
+                {
+                    compileResult = (IDxcResult)Marshal.GetObjectForIUnknown(pResultPtr);
+                }
+                catch (InvalidCastException ex)
+                {
+                    // DIAGNOSTICS
+                    Debug.LogError($"[DxcCompiler] Cast to IDxcResult failed. pResultPtr: {pResultPtr.ToInt64():X8}");
+                    Debug.LogError($"[DxcCompiler] IDxcResult GUID requested: {IDxcResult_GUID}");
+                    
+                    IntPtr testPtr = IntPtr.Zero;
+                    int qiHr = Marshal.QueryInterface(pResultPtr, ref IDxcResult_GUID, out testPtr);
+                    Debug.LogError($"[DxcCompiler] Manual QueryInterface for IDxcResult HR: {qiHr:X8}");
+                    if (testPtr != IntPtr.Zero) Marshal.Release(testPtr);
+
+                    // Check for IDxcOperationResult just in case
+                    Guid IDxcOperationResult_GUID = new Guid("CEDB484A-D4E9-445A-B991-CA21CA157DC2");
+                    qiHr = Marshal.QueryInterface(pResultPtr, ref IDxcOperationResult_GUID, out testPtr);
+                    Debug.LogError($"[DxcCompiler] Manual QueryInterface for IDxcOperationResult HR: {qiHr:X8}");
+                    if (testPtr != IntPtr.Zero) Marshal.Release(testPtr);
+
+                    throw new Exception($"Failed to cast compilation result to IDxcResult. See Unity Console for details.", ex);
+                }
+
                 if (compileResult == null) throw new Exception("Failed to get IDxcResult from pointer");
 
                 int status;

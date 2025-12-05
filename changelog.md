@@ -1,5 +1,10 @@
 # Changelog
 
+## v2025.12.05.2
+
+### Added
+- **Diagnostics:** Added detailed debug logging to `DxcCompiler` to diagnose persistent `InvalidCastException` failures when retrieving `IDxcResult`. This includes logging the returned pointer address and attempting manual `QueryInterface` calls for `IDxcResult` and `IDxcOperationResult` to identify the actual interface supported by the embedded `dxcompiler.dll`.
+
 ## v2025.12.05.1
 
 ### Fixed
