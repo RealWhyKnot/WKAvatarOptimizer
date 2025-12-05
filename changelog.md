@@ -3,11 +3,8 @@
 ## v2025.12.04.7
 
 ### Fixed
-- **Critical Threading Issue:** Fixed `UnityException: GetName can only be called from the main thread` errors in shader parsing. Pre-fetch all Unity API calls (`shader.name`, `material.name`, `AssetDatabase.GetAssetPath`) on the main thread before starting background tasks in `ShaderAnalyzer`.
-- **Material Property Threading Issue:** Fixed `HasProperty can only be called from the main thread` errors in `CreateFallbackShaderIR` by removing material property copying from the fallback path, as it was called from background threads.
-- **KeyNotFoundException:** Fixed crash when looking up failed shader compilations in cache by using `TryGetValue` with fallback to main thread parsing in `ParseAndCacheAllShaders`.
-- **DXC Null Reference Handling:** Added comprehensive null checks in `DxcCompiler.CompileToSpirV` with specific error messages for debugging: compiler initialization, blob encoding creation, and compilation result validation.
-- **Method Signature Updates:** Updated `ShaderAnalyzer.ParseUniversal` and `UniversalShaderLoader.LoadShader` to accept pre-fetched `shaderName` and `materialName` parameters, ensuring thread-safe shader processing across the entire pipeline.
+- **Threading Stability:** Resolved `UnityException: GetName can only be called from the main thread` by refactoring `ShaderAnalyzer` and `UniversalShaderLoader` to pre-fetch shader and material names on the main thread before passing them to background tasks.
+- **DXC Interface Stability:** Switched from `IDxcUtils` to the legacy `IDxcLibrary` interface for blob creation (`CreateBlobWithEncodingOnHeapCopy`). This resolves persistent `NullReferenceException` and `CreateBlob` failures observed with the embedded `dxcompiler.dll` version 1.8, ensuring reliable shader source loading.
 
 ## v2025.12.04.6
 
@@ -57,7 +54,7 @@
 - DXC and SPIRV-Reflect dependencies and C# bindings (`WKAvatarOptimizer/Core/Native/`).
 - Shader Intermediate Representation (ShaderIR) definition (`WKAvatarOptimizer/Core/Universal/ShaderIR.cs`).
 - `UniversalShaderLoader` for shader source parsing and SPIR-V reflection (`WKAvatarOptimizer/Core/Universal/UniversalShaderLoader.cs`).
-- `PropertyMapper` using Levenshtein distance for fuzzy property mapping (`WKAvatarOptimizer/Core/Universal/PropertyMapper.cs`).
+- `PropertyMapper` using Levenshtein distance to fuzzy property mapping (`WKAvatarOptimizer/Core/Universal/PropertyMapper.cs`).
 - `UniversalAvatar.shader` and `UniversalAvatarCore.hlsl` as the target shader for optimization (`WKAvatarOptimizer/Shaders/`).
 
 ### Changed

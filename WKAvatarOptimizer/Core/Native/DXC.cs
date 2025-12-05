@@ -66,45 +66,34 @@ namespace WKAvatarOptimizer.Core.Native
     }
 
     [ComImport]
-    [Guid("4605C4CB-2019-492A-ADA4-65F20BB7D67F")]
+    [Guid("e5204dc7-d18c-4c3c-bdfb-851673980fe7")]
     [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-    internal interface IDxcUtils : IUnknown
+    internal interface IDxcLibrary : IUnknown
     {
         new IntPtr QueryInterface(ref Guid riid, out IntPtr ppvObject);
         new uint AddRef();
         new uint Release();
 
+        // 3: SetMalloc
+        void SetMalloc();
+
+        // 4: CreateBlobFromBlob
         void CreateBlobFromBlob();
 
-        void CreateBlobFromPinned();
+        // 5: CreateBlobFromFile
+        void CreateBlobFromFile();
 
-        void MoveToBlob();
+        // 6: CreateBlobWithEncodingFromPinned
+        void CreateBlobWithEncodingFromPinned();
 
+        // 7: CreateBlobWithEncodingOnHeapCopy
         [PreserveSig]
-        int CreateBlob(
+        int CreateBlobWithEncodingOnHeapCopy(
             IntPtr pText,
             uint size,
             uint codePage,
             out IDxcBlobEncoding ppResult
         );
-
-        void LoadFile();
-
-        void CreateReadOnlyStreamFromBlob();
-
-        void CreateDefaultIncludeHandler();
-
-        void GetBlobAsUtf8();
-
-        void GetBlobAsWide();
-
-        void GetDxilContainerPart();
-
-        void CreateReflection();
-
-        void BuildArguments();
-
-        void GetPDBContents();
     }
 
     [ComImport]
@@ -306,15 +295,15 @@ namespace WKAvatarOptimizer.Core.Native
     internal class DxcCompiler
     {
         private IDxcCompiler3 _compiler;
-        private IDxcUtils _utils;
+        private IDxcLibrary _library;
 
         public DxcCompiler()
         {
             _compiler = DxcNative.CreateDxcInstance<IDxcCompiler3>(
                 typeof(DxcCompilerClass).GUID, typeof(IDxcCompiler3).GUID
             );
-            _utils = DxcNative.CreateDxcInstance<IDxcUtils>(
-                typeof(DxcUtilsClass).GUID, typeof(IDxcUtils).GUID
+            _library = DxcNative.CreateDxcInstance<IDxcLibrary>(
+                typeof(DxcUtilsClass).GUID, typeof(IDxcLibrary).GUID
             );
         }
 
@@ -322,7 +311,7 @@ namespace WKAvatarOptimizer.Core.Native
         {
             if (string.IsNullOrEmpty(source)) throw new ArgumentException("Shader source is empty", nameof(source));
             if (_compiler == null) throw new InvalidOperationException("DXC compiler not initialized");
-            if (_utils == null) throw new InvalidOperationException("DXC utils not initialized");
+            if (_library == null) throw new InvalidOperationException("DXC library not initialized");
 
             var sourceBytes = Encoding.UTF8.GetBytes(source);
             IntPtr pSource = Marshal.AllocHGlobal(sourceBytes.Length);
@@ -335,9 +324,10 @@ namespace WKAvatarOptimizer.Core.Native
 
             try
             {
-                int hr = _utils.CreateBlob(pSource, (uint)sourceBytes.Length, 65001, out sourceBlobEncoding);
+                // CreateBlobWithEncodingOnHeapCopy (Slot 7)
+                int hr = _library.CreateBlobWithEncodingOnHeapCopy(pSource, (uint)sourceBytes.Length, 65001, out sourceBlobEncoding);
                 if (hr != 0) Marshal.ThrowExceptionForHR(hr);
-                if (sourceBlobEncoding == null) throw new Exception("CreateBlob returned null sourceBlobEncoding");
+                if (sourceBlobEncoding == null) throw new Exception("CreateBlobWithEncodingOnHeapCopy returned null sourceBlobEncoding");
 
                 DxcBuffer sourceBuffer = new DxcBuffer();
                 sourceBuffer.Ptr = sourceBlobEncoding.GetBufferPointer();
