@@ -119,34 +119,34 @@ namespace WKAvatarOptimizer.Core.Native
         void Disassemble();
     }
 
-    [ComImport]
-    [Guid("58346cdd-ce7b-44f9-9509-a052fd6ed1b4")]
-    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-    internal interface IDxcResult : IUnknown
+    [ComImport, Guid("58346c82-7ed3-42d0-bc51-63636e677ed3"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    internal interface IDxcResult
     {
-        new IntPtr QueryInterface(ref Guid riid, out IntPtr ppvObject);
-        new uint AddRef();
-        new uint Release();
+        // IDxcOperationResult methods (Slots 3-5)
+        [PreserveSig]
+        int GetStatus(out int pStatus); // 3
 
         [PreserveSig]
-        int GetStatus(out int pStatus);
+        int GetResult([MarshalAs(UnmanagedType.Interface)] out IDxcBlob ppResult); // 4
 
         [PreserveSig]
-        int GetResult(out IDxcBlob ppResult);
+        int GetErrorBuffer([MarshalAs(UnmanagedType.Interface)] out IDxcBlobEncoding ppErrors); // 5
+
+        // IDxcResult specific methods (Slots 6-10)
+        [PreserveSig]
+        int HasOutput(uint dxcOutKind, [MarshalAs(UnmanagedType.Bool)] out bool pHasOutput); // 6
 
         [PreserveSig]
-        int GetErrorBuffer(out IDxcBlobEncoding ppErrors);
+        int GetOutput(uint dxcOutKind, ref Guid iid, [MarshalAs(UnmanagedType.Interface)] out object ppvObject, [MarshalAs(UnmanagedType.Interface)] out IDxcBlob ppOutputName); // 7
 
         [PreserveSig]
-        int HasOutput(uint index, out int pHasOutput);
+        int GetNumOutputs(out uint pNumOutputs); // 8
 
         [PreserveSig]
-        int GetOutput(
-            uint index,
-            ref Guid iid,
-            out IntPtr ppvObject,
-            out IntPtr ppOutputName
-        );
+        int GetOutputByIndex(uint Index, out uint pKind); // 9
+
+        [PreserveSig]
+        int GetPrimaryOutput(out uint pKind); // 10
     }
 
     #endregion

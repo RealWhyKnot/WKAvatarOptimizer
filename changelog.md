@@ -1,5 +1,10 @@
 # Changelog
 
+## v2025.12.05.1
+
+### Fixed
+- **Critical DXC Interface Crash:** Corrected the VTable layout of `IDxcResult` in `DXC.cs`. The previous definition did not match the embedded `dxcompiler.dll` (v1.8.2505) which inherits `IDxcOperationResult`. This mismatch caused `InvalidCastException` and crashes when retrieving compilation results or errors.
+
 ## v2025.12.05.0
 
 ### Fixed
