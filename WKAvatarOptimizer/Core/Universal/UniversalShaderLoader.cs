@@ -71,9 +71,12 @@ namespace WKAvatarOptimizer.Core.Universal
             if (!compileResult.Succeeded)
             {
                 Debug.LogError($"[UniversalShaderLoader] DXC compilation failed for shader '{shaderName}': {compileResult.ErrorMessage}");
-                if (!string.IsNullOrEmpty(compileResult.FullExceptionDetails))
+                if (!string.IsNullOrEmpty(compileResult.VerboseLog))
                 {
-                    Debug.LogError($"[UniversalShaderLoader] DXC Compile Details: pResultPtr={compileResult.ResultPointerAddress:X8}, RequestedGUID={compileResult.RequestedInterfaceGuid}, QI_HR={compileResult.HResultForQueryInterface:X8}");
+                    Debug.LogError($"[UniversalShaderLoader] Verbose Log:\n{compileResult.VerboseLog}");
+                }
+                else if (!string.IsNullOrEmpty(compileResult.FullExceptionDetails))
+                {
                     Debug.LogError($"[UniversalShaderLoader] Full Exception: {compileResult.FullExceptionDetails}");
                 }
                 return CreateFallbackShaderIR(shaderName, sourceMaterial, compileResult.ErrorMessage);

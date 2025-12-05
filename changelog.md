@@ -1,5 +1,15 @@
 # Changelog
 
+## v2025.12.05.7
+
+### Added
+- **Verbose Debugging:** Implemented comprehensive verbose logging in `DxcCompiler` to trace the entire compilation process, including argument details, interface GUIDs, and raw pointer values. This is to definitively diagnose any remaining `InvalidCastException` or interface compatibility issues with the embedded `dxcompiler.dll`.
+
+## v2025.12.05.6
+
+### Fixed
+- **DXC GUID Resolution:** Resolved an issue where `typeof(Interface).GUID` was unexpectedly returning an empty GUID (`00000000-...`) during runtime, causing `IDxcCompiler3::Compile` to receive an invalid interface request and return `E_NOINTERFACE` (0x80004002). GUIDs for `IDxcOperationResult` and `IDxcResult` are now explicitly defined using string literals, ensuring correct interface requests to `dxcompiler.dll`.
+
 ## v2025.12.05.5
 
 ### Fixed

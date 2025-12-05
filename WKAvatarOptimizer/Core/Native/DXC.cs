@@ -313,6 +313,7 @@ namespace WKAvatarOptimizer.Core.Native
         public long ResultPointerAddress; // IntPtr doesn't serialize easily for logging
         public string FullExceptionDetails; // To capture ex.ToString()
         public Guid RequestedInterfaceGuid; // To store IDxcResult_GUID or IDxcOperationResult_GUID
+        public string VerboseLog; // Trace of execution
     }
 
     internal class DxcCompiler
@@ -329,6 +330,8 @@ namespace WKAvatarOptimizer.Core.Native
         public DxcCompileResult CompileToSpirV(string source, DxcConfiguration config)
         {
             DxcCompileResult finalResult = new DxcCompileResult { Succeeded = false };
+            StringBuilder logBuilder = new StringBuilder();
+            logBuilder.AppendLine("[DxcCompiler] Starting compilation...");
 
             if (string.IsNullOrEmpty(source))
             {
@@ -349,8 +352,11 @@ namespace WKAvatarOptimizer.Core.Native
             IDxcBlob spirvBlob = null;
             IntPtr pResultPtr = IntPtr.Zero;
             
-            // Request IDxcOperationResult directly as IDxcResult (5834...) is not supported by this DLL
-            Guid RequestGUID = typeof(IDxcOperationResult).GUID; 
+            // Explicitly define GUIDs to avoid issues with typeof(...).GUID returning empty GUIDs
+            Guid RequestGUID = new Guid("CEDB484A-D4E9-445A-B991-CA21CA157DC2"); // IDxcOperationResult_GUID
+            Guid IDxcResult_Interface_GUID = new Guid("58346c82-7ed3-42d0-bc51-63636e677ed3"); // IDxcResult_GUID
+            
+            finalResult.RequestedInterfaceGuid = RequestGUID;
 
             try
             {
@@ -363,49 +369,70 @@ namespace WKAvatarOptimizer.Core.Native
 
                 string[] args = config.ToArguments();
                 
+                logBuilder.AppendLine($"[DxcCompiler] DxcBuffer: Ptr={pSource.ToInt64():X8}, Size={sourceBytes.Length}, Encoding={sourceBuffer.Encoding}");
+                logBuilder.AppendLine($"[DxcCompiler] Arguments: {string.Join(" ", args)}");
+                logBuilder.AppendLine($"[DxcCompiler] RequestGUID: {RequestGUID}");
+
                 int hr = _compiler.Compile(
                     ref sourceBuffer,
                     args,
                     (uint)args.Length,
                     IntPtr.Zero,
-                    ref RequestGUID, 
+                    ref RequestGUID, // We request IDxcOperationResult here
                     out pResultPtr
                 );
+                
+                logBuilder.AppendLine($"[DxcCompiler] Compile returned HR: {hr:X8}, pResultPtr: {pResultPtr.ToInt64():X8}");
                 
                 if (hr != 0)
                 {
                     finalResult.ErrorMessage = $"DXC Compile failed with HRESULT: {hr:X8}";
-                    // If E_NOINTERFACE, it means even IDxcOperationResult is not supported??
-                    Marshal.ThrowExceptionForHR(hr);
+                    finalResult.VerboseLog = logBuilder.ToString();
+                    Marshal.ThrowExceptionForHR(hr); // This will throw a COMException.
                 }
                 if (pResultPtr == IntPtr.Zero)
                 {
-                    finalResult.ErrorMessage = "Compile returned null result pointer";
+                    finalResult.ErrorMessage = "Compile returned null result pointer (after HR=S_OK)";
+                    finalResult.VerboseLog = logBuilder.ToString();
                     return finalResult;
                 }
                 
                 finalResult.ResultPointerAddress = pResultPtr.ToInt64();
-                finalResult.RequestedInterfaceGuid = RequestGUID;
 
                 try
                 {
+                    logBuilder.AppendLine("[DxcCompiler] Attempting Marshal.GetObjectForIUnknown(pResultPtr)...");
                     compileResult = (IDxcOperationResult)Marshal.GetObjectForIUnknown(pResultPtr);
+                    logBuilder.AppendLine("[DxcCompiler] Marshal.GetObjectForIUnknown succeeded (IDxcOperationResult).");
                 }
                 catch (InvalidCastException ex)
                 {
+                    // DIAGNOSTICS: Cast to IDxcOperationResult failed
                     finalResult.ErrorMessage = $"Failed to cast compilation result to IDxcOperationResult.";
                     finalResult.FullExceptionDetails = ex.ToString();
+                    logBuilder.AppendLine($"[DxcCompiler] InvalidCastException during cast to IDxcOperationResult: {ex.Message}");
+
+                    // For debug logging, also try to query the IDxcResult interface
+                    IntPtr testPtr = IntPtr.Zero;
+                    int qiHr = Marshal.QueryInterface(pResultPtr, ref RequestGUID, out testPtr); 
+                    finalResult.HResultForQueryInterface = qiHr;
+                    logBuilder.AppendLine($"[DxcCompiler] Manual QI for RequestGUID ({RequestGUID}) HR: {qiHr:X8}");
+                    if (testPtr != IntPtr.Zero) Marshal.Release(testPtr);
+
+                    finalResult.VerboseLog = logBuilder.ToString();
                     return finalResult;
                 }
 
                 if (compileResult == null)
                 {
                     finalResult.ErrorMessage = "Failed to get IDxcOperationResult from pointer (GetObjectForIUnknown returned null)";
+                    finalResult.VerboseLog = logBuilder.ToString();
                     return finalResult;
                 }
 
                 int status;
                 compileResult.GetStatus(out status);
+                logBuilder.AppendLine($"[DxcCompiler] GetStatus returned: {status}");
 
                 if (status != 0)
                 {
@@ -429,6 +456,7 @@ namespace WKAvatarOptimizer.Core.Native
                     }
                     
                     finalResult.ErrorMessage = $"Shader compilation failed with status {status}: {errorMessages}";
+                    finalResult.VerboseLog = logBuilder.ToString();
                     return finalResult;
                 }
 
@@ -436,20 +464,24 @@ namespace WKAvatarOptimizer.Core.Native
                 if (spirvBlob == null)
                 {
                     finalResult.ErrorMessage = "Compilation succeeded but no SPIR-V blob was returned.";
+                    finalResult.VerboseLog = logBuilder.ToString();
                     return finalResult;
                 }
 
                 byte[] spirvBytes = new byte[(int)spirvBlob.GetBufferSize().ToUInt32()];
                 Marshal.Copy(spirvBlob.GetBufferPointer(), spirvBytes, 0, spirvBytes.Length);
+                logBuilder.AppendLine($"[DxcCompiler] Success. Blob size: {spirvBytes.Length}");
                 
                 finalResult.Succeeded = true;
                 finalResult.SpirvBytes = spirvBytes;
+                finalResult.VerboseLog = logBuilder.ToString();
                 return finalResult;
             }
             catch (Exception ex)
             {
                 finalResult.ErrorMessage = $"Unexpected error during DXC compilation: {ex.Message}";
                 finalResult.FullExceptionDetails = ex.ToString();
+                finalResult.VerboseLog = logBuilder.ToString();
                 return finalResult;
             }
             finally
