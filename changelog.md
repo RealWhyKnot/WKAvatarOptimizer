@@ -1,5 +1,11 @@
 # Changelog
 
+## v2025.12.05.3
+
+### Fixed
+- **DXC Interface Stability:** Refactored `DxcCompiler` to retrieve compilation results using the stable `IDxcOperationResult` interface (GUID `CEDB484A...`) instead of the version-sensitive `IDxcResult` interface. This avoids VTable layout ambiguities found in some `dxcompiler.dll` builds (like the embedded 1.8.2505) which caused `InvalidCastException` or crashes.
+- **Diagnostics:** Retained enhanced debug logging for result casting to aid in future troubleshooting if needed.
+
 ## v2025.12.05.2
 
 ### Added
